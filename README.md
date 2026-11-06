@@ -68,7 +68,7 @@ di-vendor di `web/vendor/three.module.js`. `node_modules` hanya dipakai untuk me
 | Tombol | Aksi |
 |---|---|
 | `W A S D` / panah | bergerak (relatif kamera) |
-| Mouse | melihat sekeliling (pointer lock; karakter menghadap kamera) |
+| Mouse | melihat sekeliling (pointer lock; karakter menghadap kamera) — kalau lock diblokir, **seret mouse** untuk memutar kamera |
 | Klik kiri | serangan ringan — **combo 3x** (hit ke-3 crit + knockback besar) |
 | Klik kanan | serangan berat (lebih lambat, damage & knockback besar) |
 | `Q` | dash + i-frame singkat (0.26 s kebal) |
@@ -82,6 +82,10 @@ di-vendor di `web/vendor/three.module.js`. `node_modules` hanya dipakai untuk me
 | `Esc` | pause / tutup overlay |
 | `M` | musik on/off |
 | Mobile | joystick kiri, tombol ATK/HVY/JUMP/DASH/BLK |
+
+> **Mode fallback (iframe / pointer lock diblokir):** tahan-geser mouse untuk memutar
+> kamera, lalu klik singkat (tanpa geser) untuk menyerang. Hint otomatis muncul di
+> tengah layar saat lock tidak aktif.
 
 Chat command: `/help`, `/heal`, `/coins`, `/map [nama]`, `/kill`, `/stats`, `/resetgear`, `/music`, `/clear`.
 

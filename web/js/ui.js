@@ -55,6 +55,7 @@ export class UI {
       shopGrid: $('#shop-grid'),
       nameInput: $('#name-input'),
       combatHint: $('#combat-hint'),
+      lockHint: $('#lock-hint'),
       resultsTable: $('#results-table'),
       resultsWinner: $('#results-winner'),
       resultsMap: $('#results-map'),
@@ -425,6 +426,12 @@ export class UI {
       this.refreshLeaderboard();
     }
     this.el.combatHint.style.opacity = this.game.state === 'playing' && !this.chatOpen ? '1' : '0';
+
+    // hint saat pointer belum terkunci (drag-look fallback)
+    const inp = this.game.input;
+    const showLockHint = this.game.state === 'playing' && !this.game.paused && !this.chatOpen
+      && !inp.isTouch && !inp.locked;
+    if (this.el.lockHint) this.el.lockHint.classList.toggle('hidden', !showLockHint);
   }
 }
 

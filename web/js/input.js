@@ -22,6 +22,8 @@ export class Input {
     this.isTouch = matchMedia('(pointer: coarse)').matches;
 
     this.joystick = { x: 0, y: 0, active: false };
+    this.press = null;              // status tekan mouse (untuk fallback drag-look)
+    this.lockUnavailable = false;
     this.lookTouch = { dx: 0, dy: 0 };
 
     this.listeners = { key: [], lock: [] };
@@ -54,16 +56,30 @@ export class Input {
     /* ------------------------------ mouse ------------------------------ */
     this.canvas.addEventListener('mousedown', (e) => {
       if (!this.enabled) return;
-      if (e.button === 0) {
-        this.attackPressed = true;
-        this.attackHeld = true;
-      }
-      if (e.button === 2) {
-        this.heavyPressed = true;
+      this.press = {
+        button: e.button,
+        lastX: e.clientX,
+        lastY: e.clientY,
+        moved: 0,
+        t: performance.now(),
+      };
+      // Kalau pointer terkunci, klik langsung = serangan (perilaku normal).
+      if (this.locked) {
+        if (e.button === 0) { this.attackPressed = true; this.attackHeld = true; }
+        if (e.button === 2) this.heavyPressed = true;
       }
     });
+
     window.addEventListener('mouseup', (e) => {
+      const p = this.press;
+      this.press = null;
       if (e.button === 0) this.attackHeld = false;
+      if (!this.enabled || !p) return;
+      // Tanpa pointer lock: klik singkat (bukan drag) = serangan.
+      if (!this.locked && p.button === e.button && p.moved < 9 && performance.now() - p.t < 450) {
+        if (e.button === 0) { this.attackPressed = true; this.attackHeld = true; }
+        if (e.button === 2) this.heavyPressed = true;
+      }
     });
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -71,6 +87,19 @@ export class Input {
       if (this.locked) {
         this.mouseDX += e.movementX || 0;
         this.mouseDY += e.movementY || 0;
+        return;
+      }
+      // Fallback: seret mouse untuk memutar kamera saat pointer lock tidak aktif
+      // (mis. game di-embed di iframe yang memblokir pointer lock).
+      if (!this.press || !this.enabled) return;
+      const dx = e.clientX - this.press.lastX;
+      const dy = e.clientY - this.press.lastY;
+      this.press.lastX = e.clientX;
+      this.press.lastY = e.clientY;
+      this.press.moved += Math.hypot(dx, dy);
+      if (this.press.moved > 3) {
+        this.mouseDX += dx * 1.7;
+        this.mouseDY += dy * 1.7;
       }
     });
 
@@ -83,6 +112,11 @@ export class Input {
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.canvas;
       this.listeners.lock.forEach((fn) => fn(this.locked));
+    });
+    document.addEventListener('pointerlockerror', () => {
+      this.lockUnavailable = true;
+      this.locked = false;
+      this.listeners.lock.forEach((fn) => fn(false));
     });
 
     window.addEventListener('keydown', (e) => {
@@ -182,8 +216,13 @@ export class Input {
   }
 
   requestLock() {
-    if (this.isTouch) return;
-    this.canvas.requestPointerLock?.();
+    if (this.isTouch || this.lockUnavailable) return;
+    try {
+      const p = this.canvas.requestPointerLock?.();
+      if (p && typeof p.catch === 'function') p.catch(() => { this.lockUnavailable = true; });
+    } catch {
+      this.lockUnavailable = true;
+    }
   }
 
   exitLock() {

@@ -68,8 +68,10 @@ Prioritas: 🔴 mengganggu, 🟡 terasa, 🟢 kosmetik.
    (Sky Islands, Lava Foundry) kadang terjebak lalu lompat-lompat sampai berhasil.
 4. 🟡 **Kamera menembus dinding.** Tidak ada raycast oklusi kamera; di sudut sempit
    kamera bisa masuk ke dalam pilar.
-5. 🟡 **Pointer lock butuh klik.** Setelah `Esc`, browser melepas lock; klik pertama
-   di canvas melakukan serangan sekaligus mengunci pointer.
+5. 🟢 **Pointer lock butuh klik.** Setelah `Esc` browser melepas lock; klik pertama di
+   canvas melakukan serangan sekaligus mengunci pointer. Bila pointer lock diblokir
+   (umum pada iframe), game otomatis beralih ke **drag-look**: seret untuk memutar
+   kamera, klik singkat untuk menyerang.
 6. 🟡 **Audio hanya setelah gesture.** Kebijakan autoplay browser; musik yang diaktifkan
    lewat settings sebelum klik pertama tidak akan berbunyi sampai ada interaksi.
 7. 🟡 **Mobile belum halus.** Joystick dan area lihat berbagi canvas; kadang sentuhan
