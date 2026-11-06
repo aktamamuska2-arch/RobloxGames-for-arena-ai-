@@ -1,0 +1,17 @@
+{
+  "name": "broken-webport",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Port eksperimental game Roblox 'BROKEN.' ke browser dengan Three.js — fan project, bukan produk resmi Roblox.",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "check": "node scripts/check-syntax.js",
+    "inspect": "python3 tools/rbxl_inspect.py"
+  },
+  "keywords": ["roblox", "threejs", "webgl", "game", "port", "experiment"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=16"
+  }
+}

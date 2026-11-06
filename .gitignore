@@ -1,0 +1,16 @@
+# dependency & artefak
+node_modules/
+package-lock.json
+dist/
+build/
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# file sementara
+*.tmp
+*.bak
