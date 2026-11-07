@@ -56,6 +56,7 @@ export class UI {
       nameInput: $('#name-input'),
       combatHint: $('#combat-hint'),
       lockHint: $('#lock-hint'),
+      deathNote: $('#death-note'),
       resultsTable: $('#results-table'),
       resultsWinner: $('#results-winner'),
       resultsMap: $('#results-map'),
@@ -66,6 +67,7 @@ export class UI {
     this.damageEls = [];
     this.vignetteT = 0;
     this.cooldownT = 0;
+    this.hitFlashT = 0;
 
     this.bind();
     this.buildShop();
@@ -123,7 +125,7 @@ export class UI {
     this.el.hpFill.style.width = `${pct}%`;
     this.el.hpFill.classList.toggle('low', pct <= 30);
     this.el.hpText.textContent = `${Math.max(0, Math.round(p.health))} / ${Math.round(p.maxHealth)}`;
-    this.el.stamina.style.width = `${(p.stamina / p.maxStamina) * 100}%`;
+    this.el.stamina.style.width = `${p.maxStamina > 0 ? (p.stamina / p.maxStamina) * 100 : 0}%`;
     this.el.stamina.style.opacity = p.sprinting ? '1' : '0.65';
     this.el.playerName.textContent = p.name;
     this.el.killstreak.textContent = p.killstreak >= 2 ? `${p.killstreak}x streak` : '';
@@ -169,6 +171,8 @@ export class UI {
   }
 
   setRoundInfo(mapName, label, seconds, urgent) {
+    if (!this.el.roundBanner) return;
+    this.el.roundBanner.classList.remove('hidden');
     this.el.roundMap.textContent = mapName;
     this.el.roundLabel.textContent = label;
     const m = Math.floor(Math.max(0, seconds) / 60);
@@ -181,6 +185,28 @@ export class UI {
     this.el.crosshair.classList.add('hit');
     clearTimeout(this._chHit);
     this._chHit = setTimeout(() => this.el.crosshair.classList.remove('hit'), 120);
+  }
+
+  /** Efek kamera saat pemain mati (dipanggil combat.js). */
+  deathCam() {
+    this.hurt(0.9);
+    this.game.world?.shake?.(0.28);
+  }
+
+  /** Reset efek saat respawn. */
+  respawnCam() {
+    this.vignetteT = 0;
+    if (this.el.vignette) this.el.vignette.style.opacity = '0';
+    this.hitFlashT = 0;
+    if (this.el.hitFlash) this.el.hitFlash.style.opacity = '0';
+    this.refreshHealth();
+  }
+
+  /** Kedip putih singkat di layar saat pemain kena hit. */
+  hitFlash(strength = 1) {
+    if (!this.el.hitFlash) return;
+    this.hitFlashT = Math.min(0.6, 0.12 + strength * 0.18);
+    this.el.hitFlash.style.opacity = String(this.hitFlashT);
   }
 
   hurt(ratio) {
@@ -414,6 +440,10 @@ export class UI {
 
   /* ============================== per-frame ============================== */
   update(dt) {
+    if (this.hitFlashT > 0 && this.el.hitFlash) {
+      this.hitFlashT = Math.max(0, this.hitFlashT - dt * 2.2);
+      this.el.hitFlash.style.opacity = this.hitFlashT <= 0 ? '0' : this.hitFlashT.toFixed(2);
+    }
     if (this.vignetteT > 0) {
       this.vignetteT = Math.max(0, this.vignetteT - dt * 1.6);
       if (this.vignetteT <= 0) this.el.vignette.style.opacity = '0';
@@ -426,6 +456,17 @@ export class UI {
       this.refreshLeaderboard();
     }
     this.el.combatHint.style.opacity = this.game.state === 'playing' && !this.chatOpen ? '1' : '0';
+    if (this.el.roundBanner && this.game.state !== 'playing') {
+      this.el.roundBanner.classList.add('hidden');
+    }
+
+    // overlay kematian: hitung mundur respawn
+    if (this.el.deathNote) {
+      const p = this.game.player;
+      const dead = p && !p.alive && this.game.state === 'playing';
+      this.el.deathNote.classList.toggle('hidden', !dead);
+      if (dead) this.el.deathNote.textContent = `Kamu mati · respawn dalam ${Math.max(0, p.respawnT).toFixed(1)}s`;
+    }
 
     // hint saat pointer belum terkunci (drag-look fallback)
     const inp = this.game.input;

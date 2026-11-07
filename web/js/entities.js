@@ -70,6 +70,7 @@ export class Fighter {
 
     this.lastHitBy = null;
     this.lastHitTime = -99;
+    this.damagers = new Map();      // id penyerang → waktu hit terakhir (untuk assist)
     this.spawnPos = new THREE.Vector3();
     this.deadTime = 0;
   }

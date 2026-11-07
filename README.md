@@ -160,10 +160,21 @@ Chat command: `/help`, `/heal`, `/coins`, `/map [nama]`, `/kill`, `/stats`, `/re
 ## 6. Tes
 
 ```bash
+npm install          # sekali saja: jsdom (untuk tes UI + simulasi browser)
+npm test             # jalankan keempat lapis tes
+
+# atau satu per satu
 node scripts/check-syntax.js      # cek sintaks 15 modul
 node scripts/smoke-test.mjs       # map, combat, fisika, AI, player (headless)
-npm i -D jsdom && node scripts/ui-test.mjs   # UI + wiring tombol (jsdom)
+node scripts/ui-test.mjs          # UI + wiring tombol (jsdom)
+node scripts/browser-sim.mjs      # GAME UTUH di jsdom + WebGL palsu (69 asersi)
 ```
+
+`browser-sim.mjs` memuat `index.html` dan `main.js` yang sebenarnya lalu memainkan
+empat round: boot → PLAY → gerak/lompat/serang → mati & respawn → shop & refund →
+pause → hasil round → kembali ke menu → main lagi, sambil memeriksa NaN, kebocoran
+objek di scene, dan error JS. **Inilah yang menangkap bug integrasi** yang tidak
+terlihat dari tes per modul.
 
 Semua tes berjalan tanpa browser dan tanpa GPU.
 
@@ -182,6 +193,11 @@ Semua tes berjalan tanpa browser dan tanpa GPU.
   (detail + analisis di `docs/02-riset-file-rbxl.md`, rencana di roadmap).
 - UI meniru *rasa* Roblox, bukan pixel-perfect CoreGui.
 - Performa terbaik di desktop; mobile berjalan tetapi tombolnya masih kasar.
+- **Status verifikasi:** `npm test` menjalankan 4 lapis tes, termasuk simulasi game
+  utuh (69 asersi: boot → 4 round → shop → pause → menu → main lagi). Hasil render
+  WebGL yang sebenarnya tetap harus dilihat di browser — simulasi memakai WebGL palsu.
+- Riwayat bug yang ditemukan saat audit v1.1.0 (20 item) ada di
+  `docs/04-catatan-pengembangan.md` §1.
 
 ---
 

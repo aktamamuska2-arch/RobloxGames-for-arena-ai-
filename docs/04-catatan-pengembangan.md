@@ -6,6 +6,41 @@ Changelog, keputusan desain, masalah yang diketahui, dan roadmap.
 
 ## 1. Changelog
 
+### v1.1.0 — 2026-11-07 (audit menyeluruh + perbaikan bug)
+
+Rilis v1.0.0 ditulis cepat dan **tidak diuji sebagai satu aplikasi utuh** — hanya
+modul per modul. Setelah seluruh kode dibaca ulang dan dibuat simulator browser
+(`scripts/browser-sim.mjs`), ditemukan dan diperbaiki bug berikut:
+
+| # | Bug | Dampak | Perbaikan |
+|---|---|---|---|
+| 1 | `#round-banner` tidak pernah di-`show` | **tidak ada timer/nama map/round di HUD** — terasa seperti game rusak | `ui.setRoundInfo()` melepas `hidden`; `ui.update()` menyembunyikannya di luar state playing |
+| 2 | `setPaused(false)` ikut menyembunyikan layar *results* | game **nyangkut**: hasil round hilang, tidak bisa lanjut ke round berikutnya | `setPaused`/`togglePause`/`Esc` diabaikan saat `state === 'results'` |
+| 3 | Wajah karakter memakai tekstur transparan pada material opaque | **wajah hitam** di semua karakter | `makeFaceTexture(skin)` mengisi latar dengan warna kulit (cache per warna) |
+| 4 | Bot menyerang selama intermission | pemain dibunuh saat belanja / jeda antar round | gate `game.combatEnabled`; hanya aktif di fase `round` |
+| 5 | Semua 7 bot mengejar pemain (`score += 18`) | pemain dikeroyok & mati dalam ±10 detik | bias per bot 3–15, sisanya duel sesama bot |
+| 6 | Tidak ada regenerasi HP | sekali kena, HP tidak pulih sampai mati | regen 4.5 HP/s setelah 6 detik tanpa hit (ala script `Health`) |
+| 7 | Skala kesulitan bot hanya dihitung saat spawn (round 1) | round 2+ tidak pernah makin sulit | skala `lightMul/heavyMul` dihitung ulang di `startRound()` |
+| 8 | Semua karakter bisa spawn di titik yang sama | tumpang tindih & langsung berkelahi | pemilihan spawn dengan jarak minimum 9 stud |
+| 9 | `separateEntities()` mendorong karakter menembus dinding | karakter bisa masuk ke dalam blok | dorongan dibatalkan jika posisi hasilnya terblokir |
+| 10 | Server mengembalikan `index.html` (200) untuk aset yang hilang | error membingungkan `Unexpected token '<'` | balas **404** untuk path ber-ekstensi |
+| 11 | `while (used.has(n))` tanpa batas saat nama bot habis | **hang** total jika bot > 20 | fallback `Guest N` setelah 24 percobaan |
+| 12 | Musik diputar sebelum gesture user | `AudioContext` ditolak, timer musik jalan sia-sia | musik ditunda sampai `unlock()` |
+| 13 | Kamera menembus dinding | tidak bisa melihat karakter di sudut sempit | occlusion 9 sampel titik + tarik kamera (`World.setColliders`) |
+| 14 | Tidak ada petunjuk saat mati | pemain bingung menunggu 4 detik | overlay `#death-note` dengan hitung mundur |
+| 15 | Tanpa efek saat kena hit | feedback kurang | `#hit-flash` putih singkat + `ui.hitFlash()` |
+| 16 | Map randomizer bisa memilih map yang sama 2× berturut | terasa tidak acak | pilih ulang maksimum 8× |
+| 17 | `assistCoins` didefinisikan tapi tak pernah dipakai | janji di dokumen tidak jalan | peta `damagers` per korban: assist +4 koin untuk pemain |
+| 18 | Bot berjalan ke jurang di Sky Islands | bot bunuh diri | cek `groundBelow()` 3.2 stud ke depan, putar arah |
+| 19 | Canvas tidak bisa fokus | keyboard mati sampai klik pertama (khusus iframe) | `tabindex="0"` + `canvas.focus()` saat mulai/resume |
+| 20 | `airControl` di config tidak dipakai | angka konfigurasi menyesatkan | dipakai pada akselerasi udara |
+
+**Tes baru:** `scripts/browser-sim.mjs` — menjalankan `index.html` + `main.js` asli di
+jsdom dengan WebGL palsu: boot, PLAY, gerak, lompat, serangan, kematian & respawn,
+intermission aman, shop jual-beli & refund, pause, hasil round, Esc di results,
+4 round berturut-turut (cek kebocoran objek & NaN), keluar ke menu lalu main lagi,
+dan kamera. **69 asersi, semua lulus.**
+
 ### v1.0.0 — 2026-11-07 (rilis pertama)
 
 **Riset**
@@ -66,8 +101,9 @@ Prioritas: 🔴 mengganggu, 🟡 terasa, 🟢 kosmetik.
    `Vector3`/`Color3` belum. (Roadmap #2.)
 3. 🟡 **Bot tidak punya pathfinding.** Mereka mendekati target lurus; di map bertingkat
    (Sky Islands, Lava Foundry) kadang terjebak lalu lompat-lompat sampai berhasil.
-4. 🟡 **Kamera menembus dinding.** Tidak ada raycast oklusi kamera; di sudut sempit
-   kamera bisa masuk ke dalam pilar.
+   (v1.1.0 menambahkan penghindaran jurang, bukan pencarian jalur.)
+4. 🟢 **Kamera menembus dinding** — sudah diperbaiki di v1.1.0 (occlusion 9 sampel).
+   Sisa: kamera masih bisa "menempel" ke dinding tipis pada sudut ekstrem.
 5. 🟢 **Pointer lock butuh klik.** Setelah `Esc` browser melepas lock; klik pertama di
    canvas melakukan serangan sekaligus mengunci pointer. Bila pointer lock diblokir
    (umum pada iframe), game otomatis beralih ke **drag-look**: seret untuk memutar
@@ -85,7 +121,20 @@ Prioritas: 🔴 mengganggu, 🟡 terasa, 🟢 kosmetik.
 
 ---
 
-## 4. Roadmap
+## 4. Status verifikasi (v1.1.0)
+
+| Lapis | Perintah | Cakupan | Hasil |
+|---|---|---|---|
+| sintaks | `npm run check` | 15 modul | 15/15 |
+| logika | `node scripts/smoke-test.mjs` | map, combat, fisika, AI, lava, FX, player | lulus |
+| UI | `node scripts/ui-test.mjs` | wiring DOM, shop, chat, results, settings | lulus |
+| **game utuh** | `node scripts/browser-sim.mjs` | boot → 4 round → shop → menu → main lagi | **69 asersi lulus** |
+| semua | `npm test` | keempatnya berurutan | lulus |
+
+Yang **tetap tidak bisa** diverifikasi otomatis (butuh GPU/browser nyata): hasil
+kompilasi shader, kualitas visual akhir, dan pointer lock asli.
+
+## 5. Roadmap
 
 | # | Fitur | Nilai | Perkiraan usaha |
 |---|---|---|---|
@@ -107,7 +156,7 @@ inspirasi sistem combo lanjutan (launch/air combo), dan mode spectate.
 
 ---
 
-## 5. Cara debugging
+## 6. Cara debugging
 
 Buka console browser:
 
@@ -137,7 +186,7 @@ atau di console: `localStorage.removeItem('broken.webport.save.v2')` lalu refres
 
 ---
 
-## 6. Catatan performa yang diukur (perkiraan)
+## 7. Catatan performa yang diukur (perkiraan)
 
 | Kondisi | Hasil |
 |---|---|
@@ -152,7 +201,7 @@ Angka fps belum diukur otomatis (butuh browser nyata); kalau terasa berat, ubah
 
 ---
 
-## 7. Atribusi & lisensi
+## 8. Atribusi & lisensi
 
 - Game asli: **BROKEN.** oleh **Dewan Mukto (D'MUKTO)** — repo ini, lisensi MIT
   (`LICENSE`, © 2024 Dewan Mukto).

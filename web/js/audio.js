@@ -15,6 +15,8 @@ export class AudioSys {
     this.musicStep = 0;
     this._noise = null;
     this._unlocked = false;
+    this._pendingMusic = false;
+    this._wantMusic = false;
   }
 
   /** Harus dipanggil dari gesture user pertama (klik/keydown). */
@@ -38,6 +40,11 @@ export class AudioSys {
     this.init();
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     this._unlocked = true;
+    // musik yang diminta sebelum gesture user baru bisa dibunyikan sekarang
+    if (this._pendingMusic && this._wantMusic) {
+      this._pendingMusic = false;
+      this._startMusic();
+    }
   }
 
   setVolume(v) {
@@ -164,10 +171,19 @@ export class AudioSys {
   /* ----------------------------- musik ----------------------------- */
   setMusic(on) {
     this.musicOn = !!on;
-    if (!this.ctx) return;
+    this._wantMusic = !!on;
+    if (!this.ctx) {
+      this._pendingMusic = !!on;   // tunggu gesture user
+      return;
+    }
     this.musicGain.gain.cancelScheduledValues(this.t);
     this.musicGain.gain.linearRampToValueAtTime(on ? 0.5 : 0.0, this.t + 0.8);
-    if (on) this._startMusic(); else this._stopMusic();
+    if (on) {
+      if (this.ctx.state === 'suspended') this._pendingMusic = true;
+      else this._startMusic();
+    } else {
+      this._stopMusic();
+    }
   }
 
   _startMusic() {

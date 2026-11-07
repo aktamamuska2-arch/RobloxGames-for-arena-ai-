@@ -6,11 +6,6 @@
 import * as THREE from 'three';
 import { makeFaceTexture, makeLabelTexture } from './textures.js';
 
-const faceTex = () => {
-  if (!faceTex._cache) faceTex._cache = makeFaceTexture();
-  return faceTex._cache;
-};
-
 function mat(color, opts = {}) {
   return new THREE.MeshStandardMaterial({
     color: new THREE.Color(color),
@@ -66,7 +61,7 @@ export class Avatar {
 
     const headMats = [
       skinMat, skinMat, skinMat, skinMat,
-      new THREE.MeshStandardMaterial({ map: faceTex(), roughness: 0.7 }),
+      new THREE.MeshStandardMaterial({ map: makeFaceTexture(this.colors.skin), roughness: 0.7 }),
       skinMat,
     ];
     this.materials.push(headMats[4]);
@@ -95,7 +90,9 @@ export class Avatar {
 
     /* senjata */
     this.weaponGroup = new THREE.Group();
-    this.weaponGroup.position.set(0, -1.9, 0);
+    this.weaponGroup.position.set(0, -1.85, 0.15);
+    // senjata dipegang menghadap ke depan (kalau tidak, bilah menusuk lantai)
+    this.weaponGroup.rotation.x = -Math.PI / 2;
     this.armRPivot.add(this.weaponGroup);
     this._buildWeapon();
     this.setWeapon(this.weapon);
@@ -107,7 +104,7 @@ export class Avatar {
       ''
     );
     const labelMat = new THREE.SpriteMaterial({
-      map: this.labelTex, transparent: true, depthTest: false, depthWrite: false,
+      map: this.labelTex, transparent: true, depthTest: true, depthWrite: false,
     });
     this.label = new THREE.Sprite(labelMat);
     this.label.scale.set(9.5, 2.97, 1);
@@ -116,14 +113,14 @@ export class Avatar {
     this.group.add(this.label);
 
     /* health bar di atas kepala */
-    const bgMat = new THREE.SpriteMaterial({ color: '#101418', depthTest: false, transparent: true, opacity: 0.85 });
+    const bgMat = new THREE.SpriteMaterial({ color: '#101418', depthTest: true, transparent: true, opacity: 0.85 });
     this.hpBg = new THREE.Sprite(bgMat);
     this.hpBg.scale.set(5.4, 0.62, 1);
     this.hpBg.position.set(0, 6.45, 0);
     this.hpBg.renderOrder = 19;
     this.group.add(this.hpBg);
 
-    const fillMat = new THREE.SpriteMaterial({ color: '#25d98a', depthTest: false, transparent: true });
+    const fillMat = new THREE.SpriteMaterial({ color: '#25d98a', depthTest: true, transparent: true });
     this.hpFill = new THREE.Sprite(fillMat);
     this.hpFill.center.set(0, 0.5);
     this.hpFill.scale.set(5.1, 0.4, 1);
@@ -366,6 +363,7 @@ export class Avatar {
   setLabel(text, color) {
     this.name = text;
     if (this.labelTex) this.labelTex.dispose();
+    this.labelTex = null;
     this.labelTex = makeLabelTexture(text, color || (this.isPlayer ? '#8ff7c2' : '#ffffff'));
     this.label.material.map = this.labelTex;
     this.label.material.needsUpdate = true;

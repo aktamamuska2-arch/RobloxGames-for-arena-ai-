@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import { CAMERA } from './config.js';
+import { isBlocked } from './physics.js';
 
 const SKY_VERT = `
 varying vec3 vWorld;
@@ -34,6 +35,9 @@ export class World {
     this.shakeAmount = 0;
     this.shakeEnabled = true;
     this.tmpVec = new THREE.Vector3();
+    this._camDir = new THREE.Vector3();
+    this._desired = new THREE.Vector3();
+    this.colliders = [];
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -82,13 +86,13 @@ export class World {
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.camera.near = 1;
-    this.sun.shadow.camera.far = 400;
-    this.sun.shadow.camera.left = -90;
-    this.sun.shadow.camera.right = 90;
-    this.sun.shadow.camera.top = 90;
-    this.sun.shadow.camera.bottom = -90;
-    this.sun.shadow.bias = -0.0006;
-    this.sun.shadow.normalBias = 0.4;
+    this.sun.shadow.camera.far = 460;
+    this.sun.shadow.camera.left = -110;
+    this.sun.shadow.camera.right = 110;
+    this.sun.shadow.camera.top = 110;
+    this.sun.shadow.camera.bottom = -110;
+    this.sun.shadow.bias = -0.0004;
+    this.sun.shadow.normalBias = 0.08;
     this.scene.add(this.sun);
     this.sunTarget = new THREE.Object3D();
     this.scene.add(this.sunTarget);
@@ -116,6 +120,11 @@ export class World {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / Math.max(1, h);
     this.camera.updateProjectionMatrix();
+  }
+
+  /** Collider arena aktif — dipakai agar kamera tidak menembus dinding. */
+  setColliders(list) {
+    this.colliders = list || [];
   }
 
   setQuality(q) {
@@ -174,10 +183,30 @@ export class World {
       Math.cos(this.camYaw) * cp * this.camDist
     );
 
-    const desired = look.clone().add(offset);
+    const desired = this._desired.copy(look).add(offset);
     // jangan sampai kamera menembus lantai
     if (desired.y < look.y - 3.2) desired.y = look.y - 3.2;
     if (desired.y < 1.2) desired.y = 1.2;
+
+    /* --- occlusion: tarik kamera ke depan kalau ada dinding di antaranya --- */
+    if (this.colliders.length) {
+      const dir = this._camDir.copy(desired).sub(look);
+      const len = dir.length();
+      if (len > 0.001) {
+        dir.multiplyScalar(1 / len);
+        const steps = 9;
+        let hitT = len;
+        for (let i = 1; i <= steps; i++) {
+          const t = (i / steps) * len;
+          if (isBlocked(this.colliders,
+            look.x + dir.x * t, look.y + dir.y * t, look.z + dir.z * t, 0.35, 0.35)) {
+            hitT = Math.max(3.2, ((i - 1) / steps) * len - 0.35);
+            break;
+          }
+        }
+        if (hitT < len) desired.copy(look).addScaledVector(dir, hitT);
+      }
+    }
 
     this.camPos.lerp(desired, k);
 

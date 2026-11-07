@@ -66,7 +66,14 @@ const server = http.createServer((req, res) => {
 
   fs.stat(filePath, (err, stat) => {
     if (err || !stat.isFile()) {
-      // fallback ke index.html (SPA)
+      // Fallback ke index.html HANYA untuk route tanpa ekstensi (SPA).
+      // Untuk aset yang hilang kita balas 404 yang jelas — kalau tidak,
+      // browser menerima HTML dengan status 200 lalu gagal dengan pesan
+      // membingungkan seperti "Unexpected token '<'".
+      const ext = path.extname(filePath).toLowerCase();
+      if (ext) {
+        return send(res, 404, `Not found: ${urlPath}`, { 'Content-Type': 'text/plain; charset=utf-8' });
+      }
       const index = path.join(ROOT, 'index.html');
       return fs.readFile(index, (e2, data) => {
         if (e2) return send(res, 404, 'Not found');

@@ -88,7 +88,7 @@ export class Player extends Fighter {
 
     const dashing = this.dashT > 0;
     if (!dashing) {
-      const accel = this.onGround ? 16 : 7;
+      const accel = this.onGround ? 16 : 16 * PHYS.airControl;
       const k = 1 - Math.exp(-accel * dt);
       this.vel.x += (moveDir.x * speed - this.vel.x) * k;
       this.vel.z += (moveDir.y * speed - this.vel.z) * k;
@@ -131,6 +131,7 @@ export class Player extends Fighter {
 
     /* ----------------------------- fisika ---------------------------- */
     const events = stepEntity(game.arena.colliders, this, dt);
+    if (events.jumped) Audio.jump();
     if (events.landed) {
       if (this.vel.y < -30) {
         Audio.land();

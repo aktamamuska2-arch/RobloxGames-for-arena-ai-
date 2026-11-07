@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 
 const cache = new Map();
+const baseCache = new Map();   // tekstur dasar (satu per jenis, tidak dibuat ulang)
 
 function canvas(size = 256) {
   const c = document.createElement('canvas');
@@ -194,10 +195,10 @@ const BUILDERS = {
  * supaya kepadatan stud konsisten di semua ukuran.
  */
 export function getTexture(name, repeatX = 1, repeatY = 1) {
-  const base = BUILDERS[name] || BUILDERS.stud;
   const key = `${name}|${repeatX}|${repeatY}`;
   if (cache.has(key)) return cache.get(key);
-  const tex = base().clone();
+  if (!baseCache.has(name)) baseCache.set(name, (BUILDERS[name] || BUILDERS.stud)());
+  const tex = baseCache.get(name).clone();
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(repeatX, repeatY);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -206,10 +207,15 @@ export function getTexture(name, repeatX = 1, repeatY = 1) {
   return tex;
 }
 
-/** Wajah klasik Roblox (dua mata + senyum) untuk kepala. */
-export function makeFaceTexture() {
+/** Wajah klasik Roblox (dua mata + senyum) untuk kepala.
+ *  Latar diisi warna kulit: material kepala tidak transparan, jadi kalau
+ *  latarnya transparan (RGB 0,0,0) wajah akan tampak HITAM di depan. */
+const faceCache = new Map();
+export function makeFaceTexture(skin = '#f1c9a5') {
+  if (faceCache.has(skin)) return faceCache.get(skin);
   const { c, ctx } = canvas(128);
-  ctx.clearRect(0, 0, 128, 128);
+  ctx.fillStyle = skin;
+  ctx.fillRect(0, 0, 128, 128);
   ctx.fillStyle = 'rgba(20,18,16,0.92)';
   // mata
   ctx.beginPath(); ctx.ellipse(44, 46, 8, 11, 0, 0, Math.PI * 2); ctx.fill();
@@ -223,6 +229,7 @@ export function makeFaceTexture() {
   ctx.stroke();
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  faceCache.set(skin, tex);
   return tex;
 }
 

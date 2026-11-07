@@ -5,7 +5,7 @@
 
 import * as THREE from 'three';
 import {
-  PHYS, COMBAT, ROUND, PALETTE, BOT_NAMES, CHAT_LINES, CAMERA, SAVE_KEY,
+  PHYS, COMBAT, ROUND, PALETTE, BOT_NAMES, CAMERA,
 } from './config.js';
 import { Store, gearStats } from './store.js';
 import { World } from './scene.js';
@@ -47,6 +47,7 @@ class Game {
     this.roundNumber = 1;
     this.roundName = 'Intermission';
     this.roundResults = null;
+    this.combatEnabled = false;      // hanya true selama fase round
     this.stats = { kills: 0, deaths: 0, coinsEarned: 0 };
     this.roundCoins = new Map();
     this.clock = new THREE.Clock();
@@ -107,6 +108,8 @@ class Game {
 
       if (code === 'Escape') {
         ev.preventDefault();
+        // di layar hasil round, Esc tidak membuka pause (bisa membuat game nyangkut)
+        if (this.state === 'results') return;
         if (this.ui.isOverlayOpen() && !this.paused) {
           // tutup overlay yang terbuka (settings/howto/shop)
           const shopOpen = !this.ui.el.shop.classList.contains('hidden');
@@ -180,8 +183,12 @@ class Game {
     const botCount = Store.settings.botCount || 7;
     const used = new Set();
     for (let i = 0; i < botCount; i++) {
-      let n;
-      do { n = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)]; } while (used.has(n));
+      let n = '';
+      for (let tries = 0; tries < BOT_NAMES.length + 4; tries++) {
+        const cand = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
+        if (!used.has(cand)) { n = cand; break; }
+      }
+      if (!n) n = `Guest ${1000 + i}`;   // jangan pernah loop tanpa akhir
       used.add(n);
       const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
       const bot = new Bot({
@@ -200,9 +207,17 @@ class Game {
       this.scene.add(bot.avatar.group);
     }
 
-    // posisi awal
+    // posisi awal: usahakan tiap karakter dapat spawn yang berjauhan
+    const taken = [];
     for (const e of this.entities) {
-      const sp = this.arena?.randomSpawn() || { x: 0, y: 3, z: 0 };
+      let sp = null;
+      for (let tries = 0; tries < 12; tries++) {
+        const cand = this.arena?.randomSpawn() || { x: 0, y: 3, z: 0 };
+        const far = taken.every((t) => Math.hypot(t.x - cand.x, t.z - cand.z) > 9);
+        sp = cand;
+        if (far) break;
+      }
+      taken.push(sp);
       e.teleport(sp.x, sp.y + 0.4, sp.z, Math.random() * Math.PI * 2);
       e.pickWander?.();
     }
@@ -225,9 +240,19 @@ class Game {
       this.scene.remove(this.arena.group);
       this.arena.dispose();
     }
-    this.arena = createArena(index);
+    let pick = index;
+    if (pick === null && this.arena) {
+      // randomizer: jangan memilih map yang sama dua kali berturut-turut
+      const current = this.arena.name;
+      for (let tries = 0; tries < 8; tries++) {
+        const cand = Math.floor(Math.random() * arenaCount());
+        if (MAP_INFO[cand].name !== current) { pick = cand; break; }
+      }
+    }
+    this.arena = createArena(pick);
     this.scene.add(this.arena.group);
     this.world.applyTheme(this.arena.theme);
+    this.world.setColliders(this.arena.colliders);
     this.arena.update(0, 0);
 
     for (const f of this.fx) this.fxGroup.remove(f.mesh);
@@ -247,6 +272,7 @@ class Game {
     this.ui.show('hud');
     this.ui.updateMobileVisibility(Store.settings.forceMobile);
     this.ui.el.nameInput.blur();
+    this.canvas.focus?.();
 
     const wantedName = Store.name || this.player?.name || 'Player';
     if (this.player && wantedName !== this.player.name) {
@@ -268,6 +294,7 @@ class Game {
     this.phase = 'intermission';
     this.phaseT = ROUND.intermission;
     this.roundName = 'Intermission';
+    this.combatEnabled = false;
     this.loadArena(null);
     this.resetRoundStats();
     for (const e of this.entities) {
@@ -275,6 +302,7 @@ class Game {
       e.alive = true;
       e.avatar.setDead(false);
       respawnFighter(this, e);
+      e.iframes = Math.max(e.iframes, 1.5);   // jeda aman setelah spawn
     }
     this.ui.addChat(`Round ${this.roundNumber} siap dimulai di ${this.arena.name}.`, 'sys');
     if (!first) this.ui.toast(`Intermission — belanja dulu! (B)`, '');
@@ -297,14 +325,34 @@ class Game {
     this.phase = 'round';
     this.phaseT = ROUND.duration;
     this.roundName = `Round ${this.roundNumber}`;
+    this.combatEnabled = true;
+
+    // semua karakter respawn di titik acak saat round mulai (seperti Roblox)
+    for (const e of this.entities) {
+      e.alive = true;
+      e.avatar.setDead(false);
+      e.health = e.maxHealth;
+      respawnFighter(this, e);
+    }
+
+    // kesulitan bot naik perlahan tiap round
+    const lv = Math.max(0, this.roundNumber - 1);
+    for (const b of this.bots) {
+      b.gear.lightMul = 1 + lv * 0.045;
+      b.gear.heavyMul = 1 + lv * 0.035;
+    }
+
     this.ui.addChat(`ROUND ${this.roundNumber} DIMULAI!`, 'good');
     this.ui.toast('Fight!', 'gold');
     Audio.roundStart();
+    this.ui.refreshLeaderboard();
   }
 
   endRound() {
     this.phase = 'results';
     this.phaseT = ROUND.results;
+    this.combatEnabled = false;
+    for (const e of this.entities) e.attacking = null;
     Audio.roundEnd();
 
     const rows = [...this.entities].map((e) => {
@@ -314,25 +362,27 @@ class Game {
         color: e.avatar?.colors?.shirt || '#888',
         kills: e.stats.kills,
         deaths: e.stats.deaths,
-        coins: e.isPlayer ? bonus : 0,
+        coins: e.isPlayer ? bonus : e.stats.kills * ROUND.killCoins,
         me: e.isPlayer,
         entity: e,
       };
     }).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
 
+    if (!rows.length) { this.continueFromResults(); return; }
     const top = rows[0];
     const tied = rows.filter((r) => r.kills === top.kills);
     const winner = tied.length === 1 ? top.name : null;
 
-    // hadiah
+    // hadiah: bonus ikut round + bonus menang + koin KO
     let reward = ROUND.joinCoins;
     if (winner && top.me) {
       reward += ROUND.winCoins;
       Store.bumpStat('wins');
     }
-    reward += this.player.stats.kills * ROUND.killCoins;
-    rows.find((r) => r.me).coins = reward;
-    this.addCoins(reward, 'round bonus', true);
+    reward += (this.player?.stats.kills || 0) * ROUND.killCoins;
+    const meRow = rows.find((r) => r.me);
+    if (meRow) meRow.coins = reward;
+    if (reward > 0) this.addCoins(reward, 'round bonus', true);
 
     this.roundResults = { rows, mapName: this.arena.name, winner };
     this.ui.showResults(rows, this.arena.name, winner);
@@ -352,7 +402,7 @@ class Game {
 
   /* ============================== pause ============================== */
   setPaused(on, silent = false) {
-    if (this.state === 'menu') return;
+    if (this.state === 'menu' || this.state === 'results') return;
     this.paused = !!on;
     if (this.paused) {
       if (!silent) this.ui.show('pause');
@@ -363,8 +413,8 @@ class Game {
       this.ui.hide('shop');
       this.ui.hide('settings');
       this.ui.hide('howto');
-      this.ui.hide('results');
       this.input.enabled = true;
+      this.canvas.focus?.();
       if (this.state === 'playing' && !this.input.isTouch) this.input.requestLock();
     }
   }
@@ -402,7 +452,7 @@ class Game {
   }
 
   togglePause() {
-    if (this.state === 'menu') return;
+    if (this.state === 'menu' || this.state === 'results') return;
     this.setPaused(!this.paused);
   }
 
@@ -511,13 +561,15 @@ class Game {
     this.time += active ? dt : dt * 0.25;
 
     /* ------------------------------ phase ------------------------------ */
-    if (active && this.state === 'playing') {
-      if (this.phase === 'intermission') {
-        this.phaseT -= dt;
-        if (this.phaseT <= 0) this.startRound();
-      } else if (this.phase === 'round') {
-        this.phaseT -= dt;
-        if (this.phaseT <= 0) this.endRound();
+    if (this.state === 'playing') {
+      if (active) {
+        if (this.phase === 'intermission') {
+          this.phaseT -= dt;
+          if (this.phaseT <= 0) this.startRound();
+        } else if (this.phase === 'round') {
+          this.phaseT -= dt;
+          if (this.phaseT <= 0) this.endRound();
+        }
       }
       const label = this.phase === 'round' ? `Round ${this.roundNumber}` : this.phase === 'intermission' ? 'Intermission' : 'Results';
       this.ui.setRoundInfo(this.arena.name, label, this.phaseT, this.phase === 'round' && this.phaseT < 15);
@@ -528,7 +580,7 @@ class Game {
       this.player.update(this, dt);
       for (const bot of this.bots) bot.update(this, dt);
       updateCombat(this, dt);
-      separateEntities(this.entities, dt);
+      separateEntities(this.entities, dt, this.arena.colliders);
       updateFx(this, dt);
       this.arena.update(dt, this.time);
     } else if (this.state === 'menu') {

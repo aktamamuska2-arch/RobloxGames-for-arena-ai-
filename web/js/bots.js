@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { PHYS, CHAT_LINES } from './config.js';
 import { Fighter } from './entities.js';
-import { stepEntity, dangerDpsAt } from './physics.js';
+import { stepEntity, dangerDpsAt, groundBelow } from './physics.js';
 import { tryAttack, tryDash, setBlocking, applyDamage, killFighter } from './combat.js';
 
 const tmpDir = new THREE.Vector3();
@@ -25,7 +25,7 @@ export class Bot extends Fighter {
     this.state = 'wander';
     this.stateT = 0;
     this.target = null;
-    this.attackThink = 0;
+    this.attackThink = Math.random() * 0.85;
     this.blockThink = 0;
     this.wanderPoint = new THREE.Vector3();
     this.stuckT = 0;
@@ -33,6 +33,8 @@ export class Bot extends Fighter {
     this.avoidDir = new THREE.Vector3();
     this.chatT = 8 + Math.random() * 20;
     this.skill = 0.55 + Math.random() * 0.4;
+    // sebagian bot lebih tertarik ke player, sebagian lebih suka lawan sesama bot
+    this.playerBias = 3 + Math.random() * 12;
     this.name = opts.name || 'Bot';
     this.moving = false;
     this.sprinting = Math.random() > 0.6;
@@ -60,7 +62,7 @@ export class Bot extends Fighter {
       const d = Math.hypot(e.pos.x - this.pos.x, e.pos.z - this.pos.z);
       if (d > 90) continue;
       let score = 100 - d;
-      if (e.isPlayer) score += 18;             // bots sedikit lebih suka player
+      if (e.isPlayer) score += this.playerBias; // hanya sebagian bot mengincar player
       if (e === this.target) score += 12;      // stickiness
       if (e.health < e.maxHealth * 0.35) score += 20;
       if (score > bestScore) { bestScore = score; best = e; }
@@ -226,6 +228,21 @@ export class Bot extends Fighter {
     }
 
     if (desired.lengthSq() > 0.0001) desired.normalize();
+
+    // hindari melangkah ke jurang (penting untuk Sky Islands)
+    if (this.moving !== false && this.onGround && desired.lengthSq() > 0.001) {
+      const ahead = 3.2;
+      const g = groundBelow(
+        game.arena.colliders,
+        this.pos.x + desired.x * ahead,
+        this.pos.z + desired.z * ahead,
+        this.pos.y + 0.6, this.radius * 0.8, 0.7
+      );
+      if (!Number.isFinite(g) || g < this.pos.y - 5) {
+        const turn = Math.atan2(desired.x, desired.z) + (Math.random() < 0.5 ? 2.2 : -2.2);
+        desired.set(Math.sin(turn), 0, Math.cos(turn));
+      }
+    }
     this.moving = desired.lengthSq() > 0.001;
     this.sprinting = sprinting && this.stamina > 2;
 
@@ -281,7 +298,6 @@ export class Bot extends Fighter {
       killFighter(game, this, this.lastHitBy && game.time - this.lastHitTime < 6 ? this.lastHitBy : null);
     }
 
-    if (this.beamCheck === undefined) this.beamCheck = 0;
     this.updateAvatar(dt, Math.hypot(this.vel.x, this.vel.z));
   }
 }

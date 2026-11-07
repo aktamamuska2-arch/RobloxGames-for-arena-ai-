@@ -136,7 +136,7 @@ export function stepEntity(colliders, ent, dt, opts = {}) {
 }
 
 /** Dorong entity keluar dari entity lain (anti tumpang tindih). */
-export function separateEntities(entities, dt) {
+export function separateEntities(entities, dt, colliders = null) {
   for (let i = 0; i < entities.length; i++) {
     const a = entities[i];
     if (!a.alive) continue;
@@ -153,10 +153,17 @@ export function separateEntities(entities, dt) {
         const push = (minDist - dist) * 0.5;
         const nx = dx / dist;
         const nz = dz / dist;
-        a.pos.x -= nx * push * 0.6;
-        a.pos.z -= nz * push * 0.6;
-        b.pos.x += nx * push * 0.6;
-        b.pos.z += nz * push * 0.6;
+        const ax = a.pos.x - nx * push * 0.6;
+        const az = a.pos.z - nz * push * 0.6;
+        const bx = b.pos.x + nx * push * 0.6;
+        const bz = b.pos.z + nz * push * 0.6;
+        // jangan mendorong karakter menembus dinding
+        if (!colliders || !isBlocked(colliders, ax, a.pos.y, az, a.radius ?? PHYS.radius, a.height ?? PHYS.height)) {
+          a.pos.x = ax; a.pos.z = az;
+        }
+        if (!colliders || !isBlocked(colliders, bx, b.pos.y, bz, b.radius ?? PHYS.radius, b.height ?? PHYS.height)) {
+          b.pos.x = bx; b.pos.z = bz;
+        }
       }
     }
   }

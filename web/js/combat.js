@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import { COMBAT, ROUND, PHYS } from './config.js';
+import { dangerDpsAt } from './physics.js';
 import { Audio } from './audio.js';
 
 const VFX_GEO = new THREE.BoxGeometry(0.42, 0.42, 0.42);
@@ -16,6 +17,8 @@ const tmp2 = new THREE.Vector3();
 
 /* ------------------------------------------------------------------ VFX -- */
 export function spawnBurst(game, pos, color = '#ffe08a', count = 9, power = 12) {
+  // batasi jumlah partikel supaya tidak meledak saat combo besar
+  if (game.fx.length > 140) count = Math.min(count, 2);
   for (let i = 0; i < count; i++) {
     const mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(color),
@@ -82,6 +85,8 @@ export function attackSpec(fighter, kind) {
 export function tryAttack(game, fighter, kind = 'light') {
   if (!fighter.alive || fighter.attacking || fighter.blocking) return false;
   if (fighter.attackCd > 0) return false;
+  // selama intermission tidak ada damage — pemain aman saat belanja
+  if (game.combatEnabled === false) return false;
 
   const heavy = kind === 'heavy';
   if (heavy && fighter.stamina < COMBAT.stamina.heavyCost) {
@@ -188,6 +193,10 @@ export function applyDamage(game, target, amount, attacker, opts = {}) {
   target.health -= dmg;
   target.taken += dmg;
   target.lastHitBy = attacker || null;
+  if (attacker) {
+    if (!target.damagers) target.damagers = new Map();
+    target.damagers.set(attacker.id, game.time);
+  }
   target.lastHitTime = game.time;
   target.iframes = Math.max(target.iframes, COMBAT.hitInvuln);
   target.avatar.hitFlash(blocked ? 0.08 : 0.18);
@@ -232,7 +241,10 @@ export function applyDamage(game, target, amount, attacker, opts = {}) {
     game.world.shake(opts.crit ? 0.35 : 0.16);
     game.ui?.crosshairHit();
   }
-  if (target.isPlayer) game.world.shake(0.45);
+  if (target.isPlayer) {
+    game.world.shake(0.45);
+    game.ui?.hitFlash?.(blocked ? 0.35 : 1);
+  }
 
   target.avatar.setHealth(target.health, target.maxHealth);
   game.ui?.refreshHealth?.();
@@ -242,6 +254,7 @@ export function applyDamage(game, target, amount, attacker, opts = {}) {
 
 export function killFighter(game, victim, attacker) {
   if (!victim.alive) return;
+  if (!game.stats) game.stats = { kills: 0, deaths: 0, coinsEarned: 0 };
   victim.alive = false;
   victim.health = 0;
   victim.deadTime = 0;
@@ -274,6 +287,19 @@ export function killFighter(game, victim, attacker) {
       game.ui?.deathCam?.();
     }
 
+    // assist: siapa pun yang melukai korban dalam 6 detik terakhir
+    if (victim.damagers) {
+      for (const [id, t] of victim.damagers) {
+        if (id === attacker.id || game.time - t > 6) continue;
+        const helper = game.entities.find((e) => e.id === id);
+        if (helper && helper.isPlayer && helper.alive) {
+          game.addCoins(ROUND.assistCoins, `assist ${victim.name}`, true);
+          game.ui?.toast(`Assist +${ROUND.assistCoins}`, 'gold');
+        }
+      }
+      victim.damagers.clear();
+    }
+
     game.ui?.addChat(`${attacker.name} mengalahkan ${victim.name}`, 'warn');
     if (attacker.killstreak >= 3) {
       game.ui?.toast(`${attacker.name} killstreak ${attacker.killstreak}!`, 'gold');
@@ -298,9 +324,13 @@ export function respawn(game, fighter) {
   fighter.respawnT = 0;
   fighter.attacking = null;
   fighter.attackCd = 0;
+  fighter.comboIndex = 0;
+  fighter.comboTimer = 0;
+  fighter.dashT = 0;
   fighter.iframes = 1.2;
   fighter.blocking = false;
   fighter.stamina = fighter.maxStamina;
+  fighter.vel.set(0, 0, 0);
   fighter.avatar.setDead(false);
   fighter.avatar.setHealth(fighter.maxHealth, fighter.maxHealth);
   fighter.teleport(spawn.x, spawn.y + 0.4, spawn.z, Math.random() * Math.PI * 2);
@@ -362,6 +392,14 @@ export function updateCombat(game, dt) {
     }
 
     fighter.updateTimers(dt);
+
+    // regen ala "Health" script Roblox: pulih pelan kalau lama tidak kena hit
+    if (fighter.alive && fighter.health < fighter.maxHealth
+        && game.time - fighter.lastHitTime > 6
+        && !(game.arena.danger && game.arena.danger.length
+          && dangerDpsAt(game.arena.danger, fighter.pos.x, fighter.pos.y, fighter.pos.z) > 0)) {
+      fighter.heal(4.5 * dt);
+    }
 
     if (fighter.attacking) {
       fighter.attacking.t += dt;

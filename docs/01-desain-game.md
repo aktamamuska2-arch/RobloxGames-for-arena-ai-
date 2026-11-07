@@ -92,12 +92,20 @@ terjebak di zona lava (26 DPS, tick tiap 0.5 s).
 
 | Fase | Durasi | Isi |
 |---|---|---|
-| Intermission | 20 s | map baru dimuat, semua respawn, shop dibuka |
-| Round | 120 s | free-for-all, timer berubah merah di 15 s terakhir |
+| Intermission | 20 s | map baru dimuat, semua respawn (1.5 s kebal), shop dibuka, **tanpa damage** |
+| Round | 120 s | free-for-all; semua respawn di titik acak saat mulai; timer merah di 15 s terakhir |
 | Results | 9 s | tabel hasil, hadiah koin, tombol lanjut |
 
-`Round` berikutnya menaikkan level gear bot sedikit (`+4%` damage ringan per round,
-`+3%` heavy) supaya kesulitan tidak datar.
+`Round` berikutnya menaikkan damage bot (`+4.5%` ringan, `+3.5%` heavy per round,
+dihitung ulang di `startRound()`), supaya kesulitan tidak datar.
+
+### 4.1 Regenerasi & keamanan antar-round
+
+- HP pulih **4.5/s** setelah **6 detik** tanpa menerima damage (meniru script
+  `Health` bawaan Roblox).
+- Saat intermission **semua serangan dinonaktifkan** (`game.combatEnabled = false`),
+  jadi pemain bisa belanja tanpa dibunuh bot.
+- Saat mati muncul overlay "Kamu mati · respawn dalam N s" di tengah layar.
 
 Kemenangan = **KO terbanyak**. Kalau seri, layar hasil menampilkan "Seri".
 
@@ -109,6 +117,7 @@ Kemenangan = **KO terbanyak**. Kalau seri, layar hasil menampilkan "Seri".
 |---|---|
 | Start save baru | 120 |
 | KO | 14 × (1 + 0.25 × (streak−1)), maksimum +4 streak |
+| **Assist** | 4 (melukai korban dalam 6 detik terakhir) |
 | Ikut round (bonus akhir) | 20 |
 | Menang round (bonus akhir) | 60 |
 | **Refund reset gear** | 75% dari total harga item |
@@ -132,7 +141,10 @@ Item dibeli permanen dengan 3 level (harga naik per level).
 | Trail Runner | +25 stamina & regen | 45 / 105 / 200 |
 
 Gear hanya memengaruhi pemain. Bot diberi gear acak ringan (pedang 55%, kapak 18%,
-speed +2 25%) agar terlihat "juga main".
+speed +2 25%) agar terlihat "juga main", ditambah skala damage per round.
+
+Bot juga tidak lagi mengeroyok pemain: setiap bot punya `playerBias` 3–15 poin
+(dari 100 skor dasar), sehingga sebagian bot lebih suka duel dengan bot lain.
 
 ---
 

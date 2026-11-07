@@ -83,15 +83,15 @@ tidak "teleport"):
      round        → countdown → endRound()
 3. kalau active:
      player.update()        # input → kamera → gerak → serangan → fisika → lava/void
-     bots.update()          # AI → gerak → serangan
-     updateCombat()         # timeline serangan, hitbox, respawn
-     separateEntities()     # anti tumpang tindih antar karakter
+     bots.update()          # AI → gerak → serangan (hindari jurang) → fisika
+     updateCombat()         # timeline serangan, hitbox, regen, respawn
+     separateEntities(..., arena.colliders)  # anti tumpang tindih (tanpa menembus dinding)
      updateFx()             # partikel
      arena.update()         # animasi blok (spin/bob)
    kalau state 'menu': kamera sinematik mengelilingi arena
    selain itu (pause/results): dunia dibekukan, kamera tetap
 4. world.updateCamera(target)  # smoothing posisi & look, shake
-5. ui.update(dt)               # health bar, vignette, leaderboard periodik
+5. ui.update(dt)               # health bar, vignette, hit flash, banner, hitung mundur respawn
 6. input.endFrame()            # reset edge-trigger (klik, dash, jump, delta mouse)
 7. world.render()
 ```
@@ -110,6 +110,7 @@ semua state) — blok 3 hanya untuk state non-playing.
 | `menu` | – | layar judul | UI saja | kamera sinematik |
 | `playing` | `false` | main | pointer lock, HUD | update penuh |
 | `playing` | `true` | pause / shop / settings | UI saja | dibekukan |
+| `playing` + fase `intermission` | `false` | jeda belanja 20 s | bebas bergerak | **tanpa damage** (`combatEnabled = false`) |
 | `results` | `false` | layar hasil round | UI saja | dibekukan |
 
 `setPaused(on, silent)` menerima mode `silent` supaya overlay (shop/settings) bisa
@@ -123,8 +124,14 @@ sedangkan membukanya saat bermain akan langsung resume.
 intermission (20 s) ──► round (120 s) ──► results (9 s) ──► intermission …
 ```
 
-`endRound()` menghitung klasemen, memberi koin (join + menang + KO), menampilkan
-tabel, lalu menunggu tombol "Lanjut".
+- `intermission`: pemain **aman** (`game.combatEnabled = false` sehingga `tryAttack`
+  selalu gagal), map baru dimuat, semua karakter respawn dengan 1.5 s kebal.
+- `round`: combat aktif; saat mulai semua respawn di titik acak dan skala bot
+  dihitung ulang (`lightMul = 1 + (round−1)·0.045`).
+- `results`: `endRound()` menghitung klasemen, memberi koin (join + menang + KO +
+  assist), menampilkan tabel, lalu menunggu tombol **Lanjut**. Di state ini
+  `setPaused`/`togglePause`/`Esc` sengaja diabaikan supaya layar hasil tidak bisa
+  tertutup dan membuat game berhenti tanpa jalan keluar.
 
 ---
 
@@ -140,8 +147,9 @@ Bukan engine fisik penuh — hanya yang dibutuhkan game ini:
   *sliding* di dinding tanpa solver.
 - **Vertikal**: gravitasi 196.2, clamp `terminalVelocity`, deteksi langit-langit,
   lalu cari permukaan tertinggi di bawah kaki (`groundBelow`) untuk mendarat.
-- **Pemisahan entitas** (`separateEntities`): dorongan horizontal bila dua karakter
-  terlalu rapat, supaya bot tidak menumpuk di satu titik.
+- **Pemisahan entitas** (`separateEntities(entities, dt, colliders)`): dorongan
+  horizontal bila dua karakter terlalu rapat; dorongan **dibatalkan** bila hasilnya
+  akan berada di dalam collider (mencegah karakter masuk ke dalam blok).
 - **Zona bahaya**: array AABB ber-`dps` untuk lava; `dangerDpsAt()` dipakai player & bot.
 - **Void**: `arena.killY`; jatuh melewatinya = mati (pembunuh terakhir dalam 6 s
   dihitung sebagai pembunuh).
@@ -165,6 +173,10 @@ look   = lerp(smoothLook, target + (0, 4.2, 0))   # smoothing eksponensial
 - Zoom: wheel → `camDist` 6–24.
 - Pitch dibatasi −1.15 … 0.95 rad.
 - Screen shake: `world.shake(n)` menumpuk amplitudo, diredam `−2.6/s`.
+- **Occlusion kamera**: `world.setColliders(arena.colliders)` dipanggil setiap kali
+  map dimuat. `updateCamera` mengambil 9 sampel titik dari target ke kamera dan
+  memendekkan jarak kalau ada collider (minimal 3.2 stud agar tidak masuk ke tubuh
+  karakter).
 - Karakter **selalu menghadap arah kamera** (gaya shift-lock) agar combat mouse terasa
   natural; gerak memakai basis kamera (`cameraRelative`).
 
@@ -193,9 +205,11 @@ applyDamage()
   ├─ kurangi HP, hitFlash, damage number, SFX, screen shake, partikel
   ├─ knockback (vel += dir × kb, +pop vertikal)
   ├─ lifesteal attacker
+  ├─ catat pelaku di target.damagers (untuk assist)
   └─ HP ≤ 0 → killFighter()
         ├─ victim.alive=false, avatar.setDead, deaths++, respawnT=4
         ├─ attacker.kills++, streak++, koin (bonus streak)
+        ├─ assist: pelaku lain dalam 6 s terakhir → +4 koin (jika pemain)
         ├─ chat "X mengalahkan Y", toast, refresh leaderboard
         └─ Store.bumpStat('kills'/'deaths') via callback game.onPlayerKill/Death
 ```
@@ -283,9 +297,15 @@ membuat game crash).
 | Sintaks | `scripts/check-syntax.js` | 15 modul (salin ke `.mjs`, `node --check`) | Node |
 | Logika (headless) | `scripts/smoke-test.mjs` | 4 map (collider/spawn/tanah), combat (hit/arah/block/kill/respawn), fisika (jatuh/mendarat/dinding), AI bot, player (gerak/lompat/serangan), lava, partikel | Node + stub DOM |
 | UI | `scripts/ui-test.mjs` | konstruksi UI, klik PLAY, beli item, toast/chat, damage number, leaderboard, hasil round, slider settings, submit chat, **kelengkapan semua id** | Node + jsdom |
+| **Game utuh** | `scripts/browser-sim.mjs` | `index.html` + `main.js` asli dengan WebGL palsu: boot, PLAY, gerak/lompat/serangan, kematian & respawn, intermission aman, shop + refund, pause, hasil round, Esc di results, 4 round berturut (kebocoran objek & NaN), kembali ke menu lalu main lagi, jarak kamera | Node + jsdom |
 
-Yang **belum** tercakup otomatis: render WebGL (butuh GPU), audio (WebAudio), dan
-interaksi pointer-lock nyata. Karena itu `main.js` memasang penangan error global
+`browser-sim.mjs` menyediakan `getContext('webgl2')` palsu (semua panggilan GL
+di-no-op-kan, `getParameter` mengembalikan nilai wajar) sehingga **seluruh jalur
+render tetap dieksekusi** — cukup untuk menangkap error JS, tapi tidak untuk
+memvalidasi hasil gambar.
+
+Yang **belum** tercakup otomatis: hasil kompilasi shader, kualitas visual, audio
+(WebAudio), dan interaksi pointer-lock nyata. Karena itu `main.js` memasang penangan error global
 yang menampilkan layar `#fatal` berisi pesan, bukan layar putih.
 
 `scripts/vendor-link.mjs` menyalin `web/vendor/three.module.js` ke `node_modules/three`
@@ -317,6 +337,7 @@ lalu daftarkan di `BUILDERS` dan `MAP_INFO`. Jangan lupa tema langit & `killY`.
 **Kepribadian bot baru** — tambah objek di `PERSONALITIES` (`bots.js`).
 
 **Keseimbangan combat** — semua di `COMBAT` (`config.js`); UI cooldown bar otomatis
-mengikuti `spec.cooldown`.
+mengikuti `spec.cooldown`. Ingat gate `game.combatEnabled` bila menambah sumber damage
+baru (mis. hazard map) supaya tidak melukai pemain saat intermission.
 
 **Command chat baru** — tambah `case` di `Game.command()` (`main.js`).
