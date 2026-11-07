@@ -35,6 +35,7 @@ export class Bot extends Fighter {
     this.skill = 0.55 + Math.random() * 0.4;
     // sebagian bot lebih tertarik ke player, sebagian lebih suka lawan sesama bot
     this.playerBias = 3 + Math.random() * 12;
+    this.arenaLimit = 55;          // di-set main.js saat spawn (setengah ukuran map)
     this.name = opts.name || 'Bot';
     this.moving = false;
     this.sprinting = Math.random() > 0.6;
@@ -43,9 +44,13 @@ export class Bot extends Fighter {
 
   pickWander() {
     const sp = this.spawnPos;
-    const a = Math.random() * Math.PI * 2;
-    const r = 12 + Math.random() * 26;
-    this.wanderPoint.set(sp.x + Math.cos(a) * r, sp.y, sp.z + Math.sin(a) * r);
+    const lim = this.arenaLimit;
+    // batasi titik wander di dalam arena, kalau tidak bot menekan dinding terus
+    this.wanderPoint.set(
+      Math.max(-lim, Math.min(lim, sp.x + Math.cos(Math.random() * Math.PI * 2) * (12 + Math.random() * 26))),
+      sp.y,
+      Math.max(-lim, Math.min(lim, sp.z + Math.sin(Math.random() * Math.PI * 2) * (12 + Math.random() * 26)))
+    );
   }
 
   aiOnRespawn() {
@@ -271,8 +276,17 @@ export class Bot extends Fighter {
       if (this.stuckT > 0.55) {
         this.wantsJump = true;
         this.stuckT = 0;
-        this.avoidDir.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
-        this.avoidT = 0.55;
+        // saat macet, utamakan arah ke tengah arena (bukan arah acak yang bisa
+        // tetap menabrak dinding)
+        const cx = -this.pos.x;
+        const cz = -this.pos.z;
+        const len = Math.hypot(cx, cz) || 1;
+        this.avoidDir.set(
+          cx / len + (Math.random() - 0.5) * 0.6,
+          0,
+          cz / len + (Math.random() - 0.5) * 0.6
+        ).normalize();
+        this.avoidT = 0.6;
       }
     }
 

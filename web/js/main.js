@@ -202,6 +202,7 @@ class Game {
           speedBonus: Math.random() < 0.25 ? 2 : 0,
         },
       });
+      bot.arenaLimit = this.arena ? this.arena.size * 0.55 : 55;
       this.entities.push(bot);
       this.bots.push(bot);
       this.scene.add(bot.avatar.group);
@@ -251,6 +252,7 @@ class Game {
     }
     this.arena = createArena(pick);
     this.scene.add(this.arena.group);
+    for (const b of this.bots) b.arenaLimit = this.arena.size * 0.55;
     this.world.applyTheme(this.arena.theme);
     this.world.setColliders(this.arena.colliders);
     this.arena.update(0, 0);
@@ -583,6 +585,18 @@ class Game {
       separateEntities(this.entities, dt, this.arena.colliders);
       updateFx(this, dt);
       this.arena.update(dt, this.time);
+
+      // redam nametag yang terlalu dekat dengan kamera
+      const camPos = this.world.camera.position;
+      for (const e of this.entities) {
+        e.avatar.updateNameplate(Math.hypot(
+          e.pos.x - camPos.x, e.pos.y + 4 - camPos.y, e.pos.z - camPos.z
+        ));
+      }
+
+      // == kamera third-person mengikuti pemain =============================
+      // WAJIB: tanpa panggilan ini kamera membeku di posisi terakhir (bug v1.0.0)
+      this.world.updateCamera(this.player.pos, dt);
     } else if (this.state === 'menu') {
       // kamera sinematik di menu
       this.menuCamAngle += dt * 0.06;

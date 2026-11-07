@@ -243,6 +243,22 @@ export class Avatar {
     this.shield.visible = this.blocking && !this.dead;
   }
 
+  /**
+   * Redam nametag & health bar kalau kamera terlalu dekat, supaya teks raksasa
+   * tidak menutupi layar (dulu terlihat seperti bug saat kamera menempel).
+   */
+  updateNameplate(distToCamera) {
+    const k = Math.max(0, Math.min(1, (distToCamera - 4.5) / 5));
+    const o = 0.08 + 0.92 * k;
+    if (this.label.material) this.label.material.opacity = o;
+    if (this.hpBg.material) this.hpBg.material.opacity = 0.85 * o;
+    if (this.hpFill.material) this.hpFill.material.opacity = o;
+    const visible = !this.dead && o > 0.12;
+    this.label.visible = visible && !this.dead;
+    this.hpBg.visible = visible && !this.dead;
+    this.hpFill.visible = visible && !this.dead;
+  }
+
   setVisible(v) {
     this.group.visible = v;
   }

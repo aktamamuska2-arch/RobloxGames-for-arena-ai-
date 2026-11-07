@@ -200,7 +200,9 @@ export class World {
           const t = (i / steps) * len;
           if (isBlocked(this.colliders,
             look.x + dir.x * t, look.y + dir.y * t, look.z + dir.z * t, 0.35, 0.35)) {
-            hitT = Math.max(3.2, ((i - 1) / steps) * len - 0.35);
+            // tarik ke depan titik tabrakan; batas bawah kecil supaya kamera
+            // tidak "lompat ke belakang dinding" di sudut sempit
+            hitT = Math.max(1.6, ((i - 1) / steps) * len - 0.35);
             break;
           }
         }

@@ -391,6 +391,64 @@ for (const key of ['KeyW', 'KeyS', 'KeyA', 'KeyD']) {
   bestMove = Math.max(bestMove, game.player.pos.distanceTo(from));
 }
 ok('player bisa bergerak (minimal satu arah)', bestMove > 1.5, `jarak terbaik=${bestMove.toFixed(2)}`);
+
+/* ---- kamera WAJIB mengikuti pemain (bug v1.0.0: kamera membeku di menu) ---- */
+section('kamera third-person');
+const THREE_CAM = await import('three');
+function camInfo() {
+  const c = game.world.camera;
+  const fwd = new THREE_CAM.Vector3();
+  c.getWorldDirection(fwd);
+  const target = new THREE_CAM.Vector3(game.player.pos.x, game.player.pos.y + 4.2, game.player.pos.z);
+  return {
+    dist: c.position.distanceTo(game.player.pos),
+    dot: fwd.dot(target.sub(c.position).normalize()),
+    pos: c.position.clone(),
+  };
+}
+frames(40);
+let cam = camInfo();
+ok('kamera dekat dengan pemain', cam.dist < 25, `dist=${cam.dist.toFixed(2)}`);
+ok('kamera menghadap ke pemain', cam.dot > 0.9, `dot=${cam.dot.toFixed(3)}`);
+
+/* pindah pemain → kamera harus ikut pindah */
+const beforeCam = camInfo().pos;
+const spTarget = game.arena.spawns[game.arena.spawns.length - 1];
+game.player.teleport(spTarget.x, spTarget.y + 0.4, spTarget.z, 0);
+frames(40);
+cam = camInfo();
+ok('kamera mengikuti pemain yang teleport', cam.dist < 25 && beforeCam.distanceTo(cam.pos) > 5,
+  `dist=${cam.dist.toFixed(2)} geser=${beforeCam.distanceTo(cam.pos).toFixed(2)}`);
+
+/* gerak mouse memutar kamera */
+const yawBefore = game.world.camYaw;
+const camBefore = camInfo().pos;
+game.input.mouseDX = 260;
+frames(20);
+ok('mouse memutar kamera', Math.abs(game.world.camYaw - yawBefore) > 0.2,
+  `yaw ${yawBefore.toFixed(2)} → ${game.world.camYaw.toFixed(2)}`);
+ok('posisi kamera berubah setelah putar', camBefore.distanceTo(camInfo().pos) > 1.5);
+
+/* nametag meredup saat kamera dekat (dulu teks raksasa menutupi layar) */
+const lbl = game.bots[0].avatar;
+lbl.updateNameplate(3);
+const nearO = lbl.label.material.opacity;
+lbl.updateNameplate(22);
+const farO = lbl.label.material.opacity;
+ok('nametag meredup saat sangat dekat', nearO < 0.2, `dekat=${nearO.toFixed(2)}`);
+ok('nametag normal saat jauh', farO > 0.9, `jauh=${farO.toFixed(2)}`);
+
+/* saat pemain mati kamera tidak melompat ke origin */
+game.player.health = 0;
+game.player.alive = false;
+game.player.avatar.setDead(true);
+frames(30);
+cam = camInfo();
+ok('kamera tetap di sekitar pemain saat mati', cam.dist < 30, `dist=${cam.dist.toFixed(2)}`);
+game.player.alive = true;
+game.player.avatar.setDead(false);
+game.player.health = game.player.maxHealth;
+frames(10);
 const yBefore = game.player.pos.y;
 game.input.jumpPressed = true;
 frames(1);
@@ -403,6 +461,9 @@ for (const b of game.bots.slice(1)) { b.alive = false; b.respawnT = 999; b.pos.s
 const bot = game.bots[0];
 bot.alive = true; bot.respawnT = 0; bot.blocking = false; bot.iframes = 0;
 bot.attacking = null; bot.attackCd = 0; bot.health = bot.maxHealth;
+// matikan dash/block bot supaya uji damage tidak "MISS" karena i-frame dash
+bot.personality = { ...bot.personality, dashChance: 0, blockChance: 0 };
+bot.dashCd = 99;
 const sp0 = game.arena.spawns[0];
 game.player.teleport(sp0.x, sp0.y + 0.4, sp0.z, 0);
 game.player.alive = true; game.player.health = game.player.maxHealth;
@@ -543,12 +604,12 @@ ok('round 2 berjalan', game.phase === 'round', game.phase);
 stepRaf(3);
 ok('loop rAF tetap hidup', rafQueue.length > 0);
 
-/* kamera tidak boleh nyangkut di dalam karakter */
-section('kamera');
-const camDist = game.world.camera.position.distanceTo(
-  new (await import('three')).Vector3(game.player.pos.x, game.player.pos.y + 4, game.player.pos.z)
+/* kamera tidak boleh menembus karakter */
+section('kamera lanjutan');
+const camDistNow = game.world.camera.position.distanceTo(
+  new THREE_CAM.Vector3(game.player.pos.x, game.player.pos.y + 4, game.player.pos.z)
 );
-ok('jarak kamera wajar (tidak menembus karakter)', camDist > 2.5, `dist=${camDist.toFixed(2)}`);
+ok('kamera tidak menembus karakter', camDistNow > 1.2 && camDistNow < 30, `dist=${camDistNow.toFixed(2)}`);
 ok('kamera di dalam batas map', Math.abs(game.world.camera.position.x) < 250);
 
 /* pengaturan: ganti kualitas & volume tidak error */
@@ -579,7 +640,9 @@ ok('beberapa round tambahan berjalan', roundsPlayed >= 4, `rounds=${roundsPlayed
 ok('jumlah objek scene tidak bocor', Math.abs(sceneNow - sceneBase) <= 4, `${sceneBase} → ${sceneNow}`);
 ok('partikel tidak menumpuk', game.fx.length < 60, `fx=${game.fx.length}`);
 ok('entitas tetap 8', game.entities.length === 8, `entities=${game.entities.length}`);
-const bigGroups = game.scene.children.filter((c) => c.type === 'Group' && c.children.length > 30);
+const bigGroups = game.scene.children.filter(
+  (c) => c.type === 'Group' && c !== game.fxGroup && c.children.length > 30
+);
 ok('hanya satu arena di scene (arena lama dibuang)', bigGroups.length === 1, `bigGroups=${bigGroups.length}`);
 ok('arena aktif ada di scene', game.scene.children.includes(game.arena.group));
 const nan = game.entities.some((e) => !Number.isFinite(e.pos.x) || !Number.isFinite(e.pos.y));

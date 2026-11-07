@@ -6,6 +6,38 @@ Changelog, keputusan desain, masalah yang diketahui, dan roadmap.
 
 ## 1. Changelog
 
+### v1.1.1 — 2026-11-07 (kamera beku)
+
+Dilaporkan dari pemakaian nyata (screenshot): **kamera tidak bergerak dan karakter
+sendiri tidak terlihat**. Penyebabnya ditemukan setelah melacak semua pemanggilan
+`updateCamera`:
+
+- `Game.update()` memanggil `world.updateCamera()` **hanya** di cabang `menu` dan
+  `pause/results`. Saat state `playing` (cabang `active`) tidak ada pemanggilan sama
+  sekali — warisan edit v1.0.0 yang salah menghapus "update kamera ganda".
+  Akibatnya kamera membeku di posisi sinematik menu (tampak seperti game rusak, dan
+  nametag/HP bar karakter yang kebetulan dekat kamera tampil raksasa).
+- Perbaikan: `this.world.updateCamera(this.player.pos, dt)` dipanggil setiap frame
+  di cabang aktif, termasuk saat pemain mati (kamera tetap di tubuh).
+- Tambahan: nametag & HP bar meredup otomatis saat jarak kamera < 4.5 stud
+  (`Avatar.updateNameplate`) supaya teks tidak pernah lagi menutupi layar.
+
+**Tes baru (8):** kamera dekat pemain, kamera menghadap pemain (dot > 0.9),
+kamera mengikuti teleport, mouse memutar kamera, posisi kamera berubah saat diputar,
+kamera tetap di tubuh saat mati, nametag meredup saat dekat, dan kamera tidak
+menembus karakter. Total simulasi: **79 asersi**.
+
+Perbaikan tambahan dari sesi ini:
+
+- Titik `wander` bot dibatasi ke dalam arena (`arenaLimit`) — sebelumnya bot bisa
+  memilih titik di luar dinding lalu menekan dinding selamanya (tampak "AI rusak").
+- Saat macet, arah lepas bot sekarang condong ke tengah arena, bukan acak.
+- Batas bawah occlusion kamera diturunkan ke 1.6 stud supaya kamera tidak "lompat
+  ke belakang dinding" di sudut sempit.
+- `smoke-test.mjs` dibuat deterministik: arena tetap, posisi tetap, bot difokuskan
+  ke satu target, dash/block dimatikan saat menguji damage (dulu kadang gagal
+  karena i-frame dash — 8/8 run stabil).
+
 ### v1.1.0 — 2026-11-07 (audit menyeluruh + perbaikan bug)
 
 Rilis v1.0.0 ditulis cepat dan **tidak diuji sebagai satu aplikasi utuh** — hanya

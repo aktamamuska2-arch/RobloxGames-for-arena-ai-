@@ -220,22 +220,50 @@ check('karakter tidak menembus dinding', () => {
 });
 
 console.log('\n[4] AI');
-check('bot bergerak & menyerang dalam 8 detik simulasi', () => {
+check('bot bergerak mendekati target', () => {
   const bot = new Bot({ name: 'BotX', gear });
+  bot.arenaLimit = arena.size * 0.55;
+  bot.pickTarget = () => { bot.target = a; };   // isolasi: fokus ke satu target
+  fakeGame.combatEnabled = true;
   fakeGame.entities.push(bot);
-  const spA = arena.spawns[2];
-  const spB = arena.spawns[3];
-  a.teleport(spA.x, spA.y + 0.2, spA.z, 0);
-  bot.teleport(spB.x, spB.y + 0.2, spB.z, 0);
+  // area terbuka di luar platform tengah, jarak 18 stud (langsung chase)
+  a.alive = true; a.health = a.maxHealth; a.blocking = false; a.iframes = 0;
+  a.teleport(30, 1, 30, 0);
+  bot.teleport(12, 1, 30, 0);
+  const d0 = Math.hypot(a.pos.x - bot.pos.x, a.pos.z - bot.pos.z);
   let moved = 0;
-  for (let i = 0; i < 500; i++) {
+  for (let i = 0; i < 300; i++) {
     fakeGame.time += 0.016;
     bot.update(fakeGame, 0.016);
     updateCombat(fakeGame, 0.016);
     moved = Math.max(moved, Math.hypot(bot.vel.x, bot.vel.z));
   }
+  const d1 = Math.hypot(a.pos.x - bot.pos.x, a.pos.z - bot.pos.z);
   assert.ok(moved > 1, 'bot tidak bergerak');
+  assert.ok(d1 < d0 - 3, `bot tidak mendekat: ${d0.toFixed(1)} → ${d1.toFixed(1)}`);
   assert.ok(Number.isFinite(bot.pos.y), 'posisi bot NaN');
+});
+
+check('bot menyerang & memberi damage', () => {
+  const bot = new Bot({ name: 'BotY', gear });
+  bot.arenaLimit = arena.size * 0.55;
+  bot.pickTarget = () => { bot.target = a; };
+  fakeGame.combatEnabled = true;
+  fakeGame.entities.push(bot);
+  a.alive = true; a.health = a.maxHealth; a.iframes = 0;
+  a.teleport(30, 1, 30, 0);
+  bot.teleport(30, 1, 34, 0);      // 4 stud di depan player
+  a.health = a.maxHealth;
+  a.blocking = false;
+  a.iframes = 0;
+  const hp0 = a.health;
+  for (let i = 0; i < 300; i++) {
+    fakeGame.time += 0.016;
+    bot.update(fakeGame, 0.016);
+    updateCombat(fakeGame, 0.016);
+    if (a.health < hp0) break;
+  }
+  assert.ok(a.health < hp0, `bot tidak menyerang (hp ${a.health}/${hp0})`);
 });
 
 console.log('\n[4b] player input');
