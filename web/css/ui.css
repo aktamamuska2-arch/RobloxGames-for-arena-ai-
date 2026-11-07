@@ -130,6 +130,8 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 }
 .chat-line b { color: #7ce7ff; }
 .chat-line.sys { color: var(--muted); font-style: italic; }
+.chat-line.bot { color: #d8e6f0; }
+.chat-line.bot b { color: #9fe8c8; }
 .chat-line.warn { color: #ffb1a8; }
 .chat-line.good { color: #9cf7c6; }
 .chat-line.fade { opacity: 0; transition: opacity .8s; }

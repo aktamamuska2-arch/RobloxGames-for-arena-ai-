@@ -17,6 +17,7 @@ import { UI } from './ui.js';
 import { Input } from './input.js';
 import { updateCombat, updateFx, respawn as respawnFighter, killFighter } from './combat.js';
 import { separateEntities } from './physics.js';
+import { Chatter } from './markov.js';
 
 class Game {
   constructor() {
@@ -489,6 +490,8 @@ class Game {
   say(text) {
     const name = this.player?.name || 'Player';
     this.ui.addChat(`${name}: ${text}`);
+    // bot "belajar" kosakata dari pemain (Markov chain), lalu memakainya acak
+    Chatter.learn(text);
   }
 
   command(raw) {

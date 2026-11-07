@@ -8,7 +8,7 @@ Prinsip yang dipegang:
 1. **Tanpa build step** — HTML + ES modules + import map. Buka lewat server statis, jalan.
 2. **Tanpa dependency runtime** — Three.js di-vendor (`web/vendor/`), server memakai
    modul `http` bawaan Node, audio & tekstur dibuat sendiri.
-3. **Modul kecil & bertanggung jawab tunggal** — 15 file, masing-masing < 600 baris.
+3. **Modul kecil & bertanggung jawab tunggal** — 16 file, masing-masing < 600 baris.
 4. **Bisa dites tanpa GPU** — logika dipisah dari renderer.
 
 ---
@@ -28,6 +28,7 @@ index.html
         ├── combat.js ──────── hitbox, damage, block, knockback, kill, VFX
         ├── physics.js ─────── AABB collision, gravitasi, step-up, danger zone
         ├── input.js ───────── keyboard, mouse/pointer-lock, wheel, touch
+        ├── markov.js ──────── rantai Markov untuk obrolan bot (belajar dari chat)
         ├── ui.js ──────────── HUD, chat, shop, leaderboard, menu, toast
         ├── audio.js ───────── sintesis SFX + musik (WebAudio)
         ├── store.js ───────── localStorage save + stat turunan gear
@@ -294,7 +295,7 @@ membuat game crash).
 
 | Lapis | File | Cakupan | Butuh |
 |---|---|---|---|
-| Sintaks | `scripts/check-syntax.js` | 15 modul (salin ke `.mjs`, `node --check`) | Node |
+| Sintaks | `scripts/check-syntax.js` | 16 modul (salin ke `.mjs`, `node --check`) | Node |
 | Logika (headless) | `scripts/smoke-test.mjs` | 4 map (collider/spawn/tanah), combat (hit/arah/block/kill/respawn), fisika (jatuh/mendarat/dinding), AI bot, player (gerak/lompat/serangan), lava, partikel | Node + stub DOM |
 | UI | `scripts/ui-test.mjs` | konstruksi UI, klik PLAY, beli item, toast/chat, damage number, leaderboard, hasil round, slider settings, submit chat, **kelengkapan semua id** | Node + jsdom |
 | **Game utuh** | `scripts/browser-sim.mjs` | `index.html` + `main.js` asli dengan WebGL palsu: boot, PLAY, gerak/lompat/serangan, kematian & respawn, intermission aman, shop + refund, pause, hasil round, Esc di results, 4 round berturut (kebocoran objek & NaN), kembali ke menu lalu main lagi, jarak kamera | Node + jsdom |
@@ -341,3 +342,8 @@ mengikuti `spec.cooldown`. Ingat gate `game.combatEnabled` bila menambah sumber 
 baru (mis. hazard map) supaya tidak melukai pemain saat intermission.
 
 **Command chat baru** — tambah `case` di `Game.command()` (`main.js`).
+
+**Kosakata bot** — tambah kalimat ke `extra[]` di `Chatter.seed()` (`markov.js`).
+Bobot campuran order-1/order-2 diatur di `Chatter.generate()`; bot memanggilnya
+lewat `Bot.think()` dengan jeda global (`game.lastBotChat`, min. 8 detik) supaya
+chat tidak banjir.

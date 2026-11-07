@@ -95,7 +95,9 @@ Chat command: `/help`, `/heal`, `/coins`, `/map [nama]`, `/kill`, `/stats`, `/re
 
 **Gameplay**
 - Free-for-all: 1 player + 7 bot dengan 4 kepribadian AI (agresif, seimbang, defensif, liar),
-  nama ala Roblox, chat sendiri, respawn otomatis.
+  nama ala Roblox, respawn otomatis, dan **obrolan bot memakai Markov chain**
+  (bot tidak membalas siapa pun; mereka mengoceh acak sambil menyerap kosakata
+  yang kamu ketik di chat).
 - Sistem round: **intermission 20 s → round 120 s → hasil**, map diacak setiap round dari 4 arena.
 - 4 arena: *Brick Arena*, *Neon Grid*, *Sky Islands* (bisa jatuh ke void), *Lava Foundry* (zona lava).
 - Combat: combo, heavy, block, dash i-frame, stamina, knockback, lifesteal, crit, damage number,
@@ -109,12 +111,14 @@ Chat command: `/help`, `/heal`, `/coins`, `/map [nama]`, `/kill`, `/stats`, `/re
 - Tekstur **prosedural** (stud, bata, ubin, neon, logam, lava, rumput) — dibuat di canvas, bukan aset.
 - Langit shader gradasi + matahari, fog per tema map, shadow map.
 - UI Roblox-style (topbar, chat bubble, panel translucent), toast notifikasi, vignette saat kena hit.
+- **Bot belajar bicara**: setiap pesan pemain di chat masuk ke rantai Markov; bot
+  menghasilkan kalimat acak dari rantai itu (`web/js/markov.js`), bukan balasan bertarget.
 - SFX & musik disintesis WebAudio (swing, hit, heavy, block, jump, dash, koin, UI, round, death).
 
 **Teknis**
 - Tanpa framework & tanpa bundler: HTML + CSS + ES modules.
 - Fisika & tabrakan sendiri (tanpa cannon/rapier), deterministik dan ringan.
-- 15 modul JS terpisah, ±4.200 baris; server dev tanpa dependency.
+- 16 modul JS terpisah, ±4.600 baris; server dev tanpa dependency.
 - 3 lapis tes: cek sintaks, smoke test logika (map/combat/fisika/AI/player), tes UI dengan jsdom.
 
 ---
@@ -137,6 +141,7 @@ Chat command: `/help`, `/heal`, `/coins`, `/map [nama]`, `/kill`, `/stats`, `/re
 │   │   ├── combat.js           # hitbox, damage, knockback, kill, VFX
 │   │   ├── physics.js          # AABB collision, gravitasi, step-up
 │   │   ├── input.js            # keyboard/mouse/pointer-lock/touch
+│   │   ├── markov.js           # generator obrolan bot (Markov chain)
 │   │   ├── ui.js               # HUD, chat, shop, leaderboard, menu
 │   │   ├── audio.js            # sintesis SFX + musik
 │   │   ├── textures.js         # tekstur procedural
@@ -164,16 +169,16 @@ npm install          # sekali saja: jsdom (untuk tes UI + simulasi browser)
 npm test             # jalankan keempat lapis tes
 
 # atau satu per satu
-node scripts/check-syntax.js      # cek sintaks 15 modul
+node scripts/check-syntax.js      # cek sintaks 16 modul
 node scripts/smoke-test.mjs       # map, combat, fisika, AI, player (headless)
 node scripts/ui-test.mjs          # UI + wiring tombol (jsdom)
-node scripts/browser-sim.mjs      # GAME UTUH di jsdom + WebGL palsu (69 asersi)
+node scripts/browser-sim.mjs      # GAME UTUH di jsdom + WebGL palsu (90 asersi)
 ```
 
 `browser-sim.mjs` memuat `index.html` dan `main.js` yang sebenarnya lalu memainkan
-empat round: boot → PLAY → gerak/lompat/serang → mati & respawn → shop & refund →
-pause → hasil round → kembali ke menu → main lagi, sambil memeriksa NaN, kebocoran
-objek di scene, dan error JS. **Inilah yang menangkap bug integrasi** yang tidak
+empat round: boot → PLAY → gerak/lompat/serang → kamera → mati & respawn → shop &
+refund → pause → hasil round → markov/chat → kembali ke menu → main lagi, sambil
+memeriksa NaN, kebocoran objek di scene, ukuran nameplate, dan error JS. **Inilah yang menangkap bug integrasi** yang tidak
 terlihat dari tes per modul.
 
 Semua tes berjalan tanpa browser dan tanpa GPU.
@@ -194,7 +199,7 @@ Semua tes berjalan tanpa browser dan tanpa GPU.
 - UI meniru *rasa* Roblox, bukan pixel-perfect CoreGui.
 - Performa terbaik di desktop; mobile berjalan tetapi tombolnya masih kasar.
 - **Status verifikasi:** `npm test` menjalankan 4 lapis tes, termasuk simulasi game
-  utuh (69 asersi: boot → 4 round → shop → pause → menu → main lagi). Hasil render
+  utuh (90 asersi: boot → 4 round → shop → kamera → chat Markov → menu → main lagi). Hasil render
   WebGL yang sebenarnya tetap harus dilihat di browser — simulasi memakai WebGL palsu.
 - Riwayat bug yang ditemukan saat audit v1.1.0 (20 item) ada di
   `docs/04-catatan-pengembangan.md` §1.

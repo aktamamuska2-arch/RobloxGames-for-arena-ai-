@@ -4,7 +4,8 @@
    ========================================================================= */
 
 import * as THREE from 'three';
-import { PHYS, CHAT_LINES } from './config.js';
+import { PHYS } from './config.js';
+import { Chatter } from './markov.js';
 import { Fighter } from './entities.js';
 import { stepEntity, dangerDpsAt, groundBelow } from './physics.js';
 import { tryAttack, tryDash, setBlocking, applyDamage, killFighter } from './combat.js';
@@ -31,7 +32,7 @@ export class Bot extends Fighter {
     this.stuckT = 0;
     this.avoidT = 0;
     this.avoidDir = new THREE.Vector3();
-    this.chatT = 8 + Math.random() * 20;
+    this.chatT = 18 + Math.random() * 32;
     this.skill = 0.55 + Math.random() * 0.4;
     // sebagian bot lebih tertarik ke player, sebagian lebih suka lawan sesama bot
     this.playerBias = 3 + Math.random() * 12;
@@ -80,11 +81,14 @@ export class Bot extends Fighter {
     this.blockThink -= dt;
     this.chatT -= dt;
 
+    // obrolan acak ala Markov: tidak membalas siapa pun, hanya mengoceh
     if (this.chatT <= 0) {
-      this.chatT = 16 + Math.random() * 26;
-      if (Math.random() < 0.5) {
-        const pool = Math.random() < 0.4 ? CHAT_LINES.taunt : CHAT_LINES.idle;
-        game.ui?.addChat(`${this.name}: ${pool[Math.floor(Math.random() * pool.length)]}`);
+      this.chatT = 26 + Math.random() * 34;
+      const lastAny = game.lastBotChat ?? -999;
+      if (game.time - lastAny > 8 && Math.random() < 0.8) {
+        game.lastBotChat = game.time;
+        const line = Chatter.generate(8 + Math.floor(Math.random() * 8));
+        game.ui?.addChat(`${this.name}: ${line}`, 'bot');
       }
     }
 

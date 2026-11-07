@@ -146,6 +146,24 @@ speed +2 25%) agar terlihat "juga main", ditambah skala damage per round.
 Bot juga tidak lagi mengeroyok pemain: setiap bot punya `playerBias` 3–15 poin
 (dari 100 skor dasar), sehingga sebagian bot lebih suka duel dengan bot lain.
 
+### 6.1 Obrolan bot (Markov chain)
+
+Bot **tidak** membalas pesan tertentu — tidak ada sistem dialog bertarget. Setiap
+26–60 detik, satu bot (maksimal satu pesan tiap 8 detik secara global) mengucapkan
+kalimat hasil **rantai Markov**:
+
+- Korpus awal: `CHAT_LINES` + 16 kalimat tambahan (campuran Indonesia/Inggris ala
+  chat Roblox).
+- Setiap pesan yang **pemain** ketik di chat ikut melatih rantai (`Chatter.learn`),
+  jadi kosakata bot menyerap kata-kata pemain.
+- Dua rantai dipakai bersamaan: order-2 (pasangan kata) untuk kalimat lebih runtut
+  dan order-1 (per kata) sebagai cadangan.
+- Anti-ngawur: kata yang sama tidak diulang dua kali berturut-turut, siklus
+  A-B-A-B dipotong, panjang maksimal 68 karakter.
+
+Contoh keluaran nyata: `"Map ini keren banget!"`, `"Jangan lupa block kalau aku
+serang"`, `"Who wants to 1v1."`
+
 ---
 
 ## 7. Map

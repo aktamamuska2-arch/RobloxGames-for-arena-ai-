@@ -107,26 +107,34 @@ export class Avatar {
       map: this.labelTex, transparent: true, depthTest: true, depthWrite: false,
     });
     this.label = new THREE.Sprite(labelMat);
-    this.label.scale.set(9.5, 2.97, 1);
-    this.label.position.set(0, 7.6, 0);
+    this.label.scale.set(6.4, 2.0, 1);
+    this.label.position.set(0, 7.05, 0);
     this.label.renderOrder = 20;
     this.group.add(this.label);
 
     /* health bar di atas kepala */
     const bgMat = new THREE.SpriteMaterial({ color: '#101418', depthTest: true, transparent: true, opacity: 0.85 });
     this.hpBg = new THREE.Sprite(bgMat);
-    this.hpBg.scale.set(5.4, 0.62, 1);
-    this.hpBg.position.set(0, 6.45, 0);
+    this.hpBg.scale.set(3.0, 0.3, 1);
+    this.hpBg.position.set(0, 6.55, 0);
     this.hpBg.renderOrder = 19;
     this.group.add(this.hpBg);
 
     const fillMat = new THREE.SpriteMaterial({ color: '#25d98a', depthTest: true, transparent: true });
     this.hpFill = new THREE.Sprite(fillMat);
     this.hpFill.center.set(0, 0.5);
-    this.hpFill.scale.set(5.1, 0.4, 1);
-    this.hpFill.position.set(-2.55, 6.45, 0);
+    this.hpFill.scale.set(2.7, 0.17, 1);
+    this.hpFill.position.set(-1.35, 6.55, 0);
     this.hpFill.renderOrder = 20;
     this.group.add(this.hpFill);
+
+    /* pemain sendiri: sembunyikan nameplate 3D (HUD bawah kiri sudah ada) */
+    this.ownHudHidden = this.isPlayer;
+    if (this.ownHudHidden) {
+      this.label.visible = false;
+      this.hpBg.visible = false;
+      this.hpFill.visible = false;
+    }
 
     /* shield (block) */
     this.shield = new THREE.Mesh(
@@ -223,10 +231,10 @@ export class Avatar {
     this.health = Math.max(0, Math.min(max, hp));
     this.maxHealth = max;
     const pct = this.maxHealth > 0 ? this.health / this.maxHealth : 0;
-    this.hpFill.scale.x = Math.max(0.001, 5.1 * pct);
+    this.hpFill.scale.x = Math.max(0.001, 2.7 * pct);
     this.hpFill.material.color.set(pct > 0.6 ? '#25d98a' : pct > 0.3 ? '#ffcf3f' : '#e3453a');
-    this.hpFill.visible = pct > 0 && !this.dead;
-    this.hpBg.visible = !this.dead;
+    this.hpFill.visible = pct > 0 && !this.dead && !this.ownHudHidden;
+    this.hpBg.visible = !this.dead && !this.ownHudHidden;
   }
 
   hitFlash(strength = 0.16) {
@@ -248,15 +256,17 @@ export class Avatar {
    * tidak menutupi layar (dulu terlihat seperti bug saat kamera menempel).
    */
   updateNameplate(distToCamera) {
-    const k = Math.max(0, Math.min(1, (distToCamera - 4.5) / 5));
-    const o = 0.08 + 0.92 * k;
+    if (this.ownHudHidden) return;
+    // 0 di jarak 7 stud, penuh di 15 stud, hilang total di >85 stud
+    const k = Math.max(0, Math.min(1, (distToCamera - 7) / 8));
+    const o = 0.05 + 0.95 * k;
     if (this.label.material) this.label.material.opacity = o;
-    if (this.hpBg.material) this.hpBg.material.opacity = 0.85 * o;
+    if (this.hpBg.material) this.hpBg.material.opacity = 0.8 * o;
     if (this.hpFill.material) this.hpFill.material.opacity = o;
-    const visible = !this.dead && o > 0.12;
-    this.label.visible = visible && !this.dead;
-    this.hpBg.visible = visible && !this.dead;
-    this.hpFill.visible = visible && !this.dead;
+    const visible = !this.dead && distToCamera < 85 && o > 0.1;
+    this.label.visible = visible;
+    this.hpBg.visible = visible;
+    this.hpFill.visible = visible && this.health > 0;
   }
 
   setVisible(v) {
@@ -268,9 +278,9 @@ export class Avatar {
     this.deadT = 0;
     this.setBlocking(false);
     this.shield.visible = false;
-    this.label.visible = !dead;
-    this.hpBg.visible = !dead;
-    this.hpFill.visible = !dead;
+    this.label.visible = !dead && !this.ownHudHidden;
+    this.hpBg.visible = !dead && !this.ownHudHidden;
+    this.hpFill.visible = !dead && !this.ownHudHidden;
     this.group.visible = !dead;
     if (!dead) {
       this.body.rotation.set(0, 0, 0);

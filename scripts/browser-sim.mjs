@@ -673,6 +673,45 @@ ok('reset gear mengembalikan koin', StoreRef.coins > coinsBeforeRefund, `${coins
 ok('gear kembali normal setelah reset', game.player.gear.lightMul === 1, `lightMul=${game.player.gear.lightMul}`);
 document.getElementById('btn-shop-close').click();
 
+/* ---------------- obrolan bot: Markov chain ---------------- */
+section('obrolan bot (markov)');
+const { Chatter, MarkovChain } = await import('../web/js/markov.js');
+
+const chainProbe = new MarkovChain(2);
+chainProbe.learn('zorblax adalah kata unik dan aneh');
+const probeOut = chainProbe.generate({ maxWords: 8 });
+ok('Markov memakai kata dari korpus', probeOut.includes('zorblax'), probeOut);
+
+const vocabBefore = Chatter.vocabulary;
+game.say('aku suka main di map lava foundry bersama teman');
+ok('chat pemain melatih Markov', Chatter.vocabulary > vocabBefore,
+  `${vocabBefore} → ${Chatter.vocabulary}`);
+ok('kata dari pemain masuk rantai', Chatter.chain1.next.has('lava') || Chatter.chain1.next.has('foundry'));
+
+// bot mengirim chat acak (bukan balasan bertarget)
+const chatCalls = [];
+const origAddChat = game.ui.addChat.bind(game.ui);
+game.ui.addChat = (text, cls) => { chatCalls.push(text); origAddChat(text, cls); };
+game.lastBotChat = -999;
+for (const b of game.bots) b.chatT = 0;
+frames(4);
+game.ui.addChat = origAddChat;
+const botLine = chatCalls.find((t) => /^[^:]+: /.test(t));
+ok('bot mengirim chat hasil Markov', !!botLine, JSON.stringify(chatCalls.slice(0, 2)));
+ok('chat bot tidak ditujukan ke pemain', !!botLine && !/\b(kamu|you)\b/i.test(botLine), botLine);
+ok('chat bot tidak kosong & wajar panjangnya', !!botLine && botLine.length > 8 && botLine.length < 120, botLine);
+
+// nameplate: milik pemain disembunyikan, ukuran health bar tidak raksasa
+section('nameplate 3D');
+ok('nameplate pemain sendiri disembunyikan', game.player.avatar.label.visible === false);
+ok('health bar pemain sendiri disembunyikan', game.player.avatar.hpBg.visible === false);
+ok('health bar 3D tidak kebesaran', game.bots[0].avatar.hpBg.scale.x <= 3.2,
+  `scale=${game.bots[0].avatar.hpBg.scale.x}`);
+game.bots[0].avatar.updateNameplate(10);
+ok('nameplate bot terlihat di jarak 10', game.bots[0].avatar.label.visible === true);
+game.bots[0].avatar.updateNameplate(120);
+ok('nameplate bot hilang di jarak jauh', game.bots[0].avatar.label.visible === false);
+
 /* cek tidak ada error JS sama sekali */
 section('hasil');
 ok('tidak ada error JS selama simulasi', errors.length === 0, errors.slice(0, 3).join(' | '));

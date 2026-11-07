@@ -6,6 +6,35 @@ Changelog, keputusan desain, masalah yang diketahui, dan roadmap.
 
 ## 1. Changelog
 
+### v1.2.0 — 2026-11-07 (nameplate 3D & obrolan Markov)
+
+Dua keluhan dari pemakaian nyata (screenshot kedua):
+
+1. **"Health-nya kenapa begini"** — health bar & nametag 3D di atas kepala
+   berukuran 5.4 × 0.62 stud (dan nametag 9.5 stud). Saat karakter dekat, keduanya
+   tampil raksasa dan nametag karakter pemain sendiri menutupi layar ("Berjalan
+   bersama" besar di tengah).
+   Perbaikan: health bar 3.0 × 0.30, nametag 6.4 × 2.0; opacity meredup mulai
+   jarak 7 stud dan hilang di >85 stud; **nametag/HP bar karakter pemain sendiri
+   disembunyikan** karena HUD kiri-bawah sudah menampilkan HP dan nama.
+2. **Chat bot terlalu template** (`"come here"`). Bot sekarang memakai **rantai
+   Markov** (`web/js/markov.js`): tidak membalas siapa pun, hanya mengoceh acak,
+   tetapi **menyerap kosakata yang diketik pemain**. Lihat `docs/01` §6.1.
+
+Detail implementasi:
+- API: `MarkovChain(order)` dengan `learn()` / `generate()`; `Chatter` menyimpan
+  rantai order-1 & order-2 sekaligus, korpus awal dari `CHAT_LINES` + 16 kalimat.
+- Anti-ngawur: tanpa pengulangan kata berurutan, siklus A-B-A-B dipotong,
+  maksimal 68 karakter, huruf awal dikapitalkan.
+- Jeda global antar pesan bot minimal 8 detik (`game.lastBotChat`), tiap bot
+  26–60 detik → chat tidak banjir.
+- Kelas CSS `.chat-line.bot` untuk membedakan pesan bot.
+
+**Tes baru (11):** Markov memakai kata dari korpus, chat pemain menambah kosakata,
+kata pemain masuk rantai, bot mengirim chat, chat tidak menargetkan pemain,
+panjang wajar, nameplate pemain tersembunyi, HP bar pemain tersembunyi, ukuran
+HP bar ≤ 3.2, terlihat di 10 stud, hilang di jarak jauh. Total simulasi: **90 asersi**.
+
 ### v1.1.1 — 2026-11-07 (kamera beku)
 
 Dilaporkan dari pemakaian nyata (screenshot): **kamera tidak bergerak dan karakter
@@ -71,7 +100,7 @@ modul per modul. Setelah seluruh kode dibaca ulang dan dibuat simulator browser
 jsdom dengan WebGL palsu: boot, PLAY, gerak, lompat, serangan, kematian & respawn,
 intermission aman, shop jual-beli & refund, pause, hasil round, Esc di results,
 4 round berturut-turut (cek kebocoran objek & NaN), keluar ke menu lalu main lagi,
-dan kamera. **69 asersi, semua lulus.**
+dan kamera. **69 asersi, semua lulus** (naik menjadi 90 di v1.2.0).
 
 ### v1.0.0 — 2026-11-07 (rilis pertama)
 
@@ -160,7 +189,7 @@ Prioritas: 🔴 mengganggu, 🟡 terasa, 🟢 kosmetik.
 | sintaks | `npm run check` | 15 modul | 15/15 |
 | logika | `node scripts/smoke-test.mjs` | map, combat, fisika, AI, lava, FX, player | lulus |
 | UI | `node scripts/ui-test.mjs` | wiring DOM, shop, chat, results, settings | lulus |
-| **game utuh** | `node scripts/browser-sim.mjs` | boot → 4 round → shop → menu → main lagi | **69 asersi lulus** |
+| **game utuh** | `node scripts/browser-sim.mjs` | boot → 4 round → shop → kamera → markov/chat → menu → main lagi | **90 asersi lulus** |
 | semua | `npm test` | keempatnya berurutan | lulus |
 
 Yang **tetap tidak bisa** diverifikasi otomatis (butuh GPU/browser nyata): hasil
